@@ -45,6 +45,51 @@ that pre-filters OAuth tokens, and one Amazon Cognito issuer with one scope per 
 
 ![Overview: one stack with four pattern distributions behind one CloudFront web ACL, and the Amazon Cognito issuer](docs/diagrams/overview/overview.svg)
 
+## Authentication
+
+Every pattern requires an OAuth 2.0 access token from Amazon Cognito in `Authorization: Bearer`, with that pattern's
+own scope: `mcp/agentcore`, `mcp/api-gateway`, `mcp/web-function` or `mcp/alb`. A token for one pattern is refused by
+the others. CloudFront filters at the edge, and the origin checks the signature and the scope with its own native
+verifier, so a customer who copies one pattern gets the check that pattern's origin offers.
+
+![MCP authorization flow: 401 with resource_metadata, protected-resource metadata, authorization server metadata, token, then initialize and tools calls; decoded at the edge, verified at the origin](docs/diagrams/mcp-auth-flow/mcp-auth-flow.svg)
+
+- **The issuer.** One Cognito user pool ([lib/auth.ts](lib/auth.ts)) issues RS256 access tokens for the resource
+  server `mcp`, with one scope per pattern, to one app client using the client credentials grant. The client asks for
+  one pattern's scope per token request.
+- **Scopes stand in for an audience.** RFC 8707 resource indicators would bind a token's `aud` to the resource URL.
+  Cognito supports that (resource binding) only for user sign-in through managed login, not for client-credentials
+  grants, so this sample binds each token to one pattern through its scope instead. With user sign-in, request
+  `resource=<pattern URL>` and have each origin check `aud` as well.
+- **The edge pre-filter.** The viewer-request CloudFront Function ([lib/viewer-request.js](lib/viewer-request.js))
+  decodes the token and answers `401` for a token that is missing, malformed, expired, from another issuer, or not an
+  access token. It does not check the signature: CloudFront Functions offer HMAC but no RSA verify, so an RS256 check
+  at the edge would need Lambda@Edge. The pre-filter still stops most bad traffic at the edge location, at
+  CloudFront Functions cost, before an origin does any work.
+- **The claims header.** The function replaces any client-sent `x-jwt-claims` with the decoded payload, so the regional
+  web ACL `OriginWaf` ([lib/waf.ts](lib/waf.ts)) can make resource-level decisions. `OriginWaf` allows a request only
+  with CloudFront's secret `x-origin-verify` header and a `scope` that includes some `mcp/` scope. The web ACL is shared by
+  every origin, so it cannot tell patterns apart; each origin requires its own scope. A forged payload gets past the
+  edge and this rule, then fails the origin's signature check.
+- **The check at each origin.**
+
+  | Pattern | Signature checked by | Why there |
+  |---|---|---|
+  | 1 AgentCore | AgentCore Gateway custom JWT authorizer, with the pool's discovery URL, the client and the scope | Native to the Gateway |
+  | 2 API Gateway | Cognito authorizer on every method, with the scope | Native to REST APIs; Lambda never runs for a bad token |
+  | 4 Web function | The hello server ([server/auth.js](server/auth.js)) | Nothing in front of the function checks tokens |
+  | 5 ALB | The hello server, which reads the keys through a `cognito-idp` VPC endpoint (no NAT) | ALB JWT verification works only on HTTPS listeners (an HTTP listener rejects the action), and an HTTPS VPC origin needs a certificate for your own domain. With one, use `ListenerAction.authenticateJwt` |
+
+- **Discovery.** The `401` carries `WWW-Authenticate: Bearer resource_metadata="https://<distribution>/.well-known/oauth-protected-resource/mcp"`.
+  Each origin serves that [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) document itself, with the distribution's
+  host in `resource` (the function passes it in `x-forwarded-host`) and the Cognito issuer in `authorization_servers`.
+  CloudFront caches it. AgentCore Gateway's own document names the Gateway's hostname, so on pattern 1 the CloudFront
+  Function answers it instead ([pattern 1](patterns/1-agentcore/README.md#where-authentication-sits)). An MCP client follows it to the issuer's metadata and the token endpoint.
+- **Getting a token.** The stack outputs `TokenUrl`, `UserPoolId` and `ClientId`; read the client secret with
+  `describe-user-pool-client` and request a client-credentials token with the pattern's scope ([Deploy](#deploy)). The
+  sample's single app client holds every scope so one deployment can exercise every pattern; in production, give each
+  client its own app client with only the scopes it needs.
+
 ## The five architectures
 
 ### 1. Amazon Bedrock AgentCore
@@ -211,51 +256,6 @@ this web ACL, then fails the origin's signature check.
 - Turn on AWS WAF logging to get a per-request record with the terminating rule and labels. The blog's CloudWatch Logs
   Insights queries (top tools, tool-enumeration spikes per IP, verified-agent × tool baseline) and the AI traffic
   analysis dashboards in the AWS WAF console work on those logs. This sample does not enable logging.
-
-## Authentication
-
-Every pattern requires an OAuth 2.0 access token from Amazon Cognito in `Authorization: Bearer`, with that pattern's
-own scope: `mcp/agentcore`, `mcp/api-gateway`, `mcp/web-function` or `mcp/alb`. A token for one pattern is refused by
-the others. CloudFront filters at the edge, and the origin checks the signature and the scope with its own native
-verifier, so a customer who copies one pattern gets the check that pattern's origin offers.
-
-![MCP authorization flow: 401 with resource_metadata, protected-resource metadata, authorization server metadata, token, then initialize and tools calls; decoded at the edge, verified at the origin](docs/diagrams/mcp-auth-flow/mcp-auth-flow.svg)
-
-- **The issuer.** One Cognito user pool ([lib/auth.ts](lib/auth.ts)) issues RS256 access tokens for the resource
-  server `mcp`, with one scope per pattern, to one app client using the client credentials grant. The client asks for
-  one pattern's scope per token request.
-- **Scopes stand in for an audience.** RFC 8707 resource indicators would bind a token's `aud` to the resource URL.
-  Cognito supports that (resource binding) only for user sign-in through managed login, not for client-credentials
-  grants, so this sample binds each token to one pattern through its scope instead. With user sign-in, request
-  `resource=<pattern URL>` and have each origin check `aud` as well.
-- **The edge pre-filter.** The viewer-request CloudFront Function ([lib/viewer-request.js](lib/viewer-request.js))
-  decodes the token and answers `401` for a token that is missing, malformed, expired, from another issuer, or not an
-  access token. It does not check the signature: CloudFront Functions offer HMAC but no RSA verify, so an RS256 check
-  at the edge would need Lambda@Edge. The pre-filter still stops most bad traffic at the edge location, at
-  CloudFront Functions cost, before an origin does any work.
-- **The claims header.** The function replaces any client-sent `x-jwt-claims` with the decoded payload, so the regional
-  web ACL `OriginWaf` ([lib/waf.ts](lib/waf.ts)) can make resource-level decisions. `OriginWaf` allows a request only
-  with CloudFront's secret `x-origin-verify` header and a `scope` that includes some `mcp/` scope. The web ACL is shared by
-  every origin, so it cannot tell patterns apart; each origin requires its own scope. A forged payload gets past the
-  edge and this rule, then fails the origin's signature check.
-- **The check at each origin.**
-
-  | Pattern | Signature checked by | Why there |
-  |---|---|---|
-  | 1 AgentCore | AgentCore Gateway custom JWT authorizer, with the pool's discovery URL, the client and the scope | Native to the Gateway |
-  | 2 API Gateway | Cognito authorizer on every method, with the scope | Native to REST APIs; Lambda never runs for a bad token |
-  | 4 Web function | The hello server ([server/auth.js](server/auth.js)) | Nothing in front of the function checks tokens |
-  | 5 ALB | The hello server, which reads the keys through a `cognito-idp` VPC endpoint (no NAT) | ALB JWT verification works only on HTTPS listeners (an HTTP listener rejects the action), and an HTTPS VPC origin needs a certificate for your own domain. With one, use `ListenerAction.authenticateJwt` |
-
-- **Discovery.** The `401` carries `WWW-Authenticate: Bearer resource_metadata="https://<distribution>/.well-known/oauth-protected-resource/mcp"`.
-  Each origin serves that [RFC 9728](https://www.rfc-editor.org/rfc/rfc9728) document itself, with the distribution's
-  host in `resource` (the function passes it in `x-forwarded-host`) and the Cognito issuer in `authorization_servers`.
-  CloudFront caches it. AgentCore Gateway's own document names the Gateway's hostname, so on pattern 1 the CloudFront
-  Function answers it instead ([pattern 1](patterns/1-agentcore/README.md#where-authentication-sits)). An MCP client follows it to the issuer's metadata and the token endpoint.
-- **Getting a token.** The stack outputs `TokenUrl`, `UserPoolId` and `ClientId`; read the client secret with
-  `describe-user-pool-client` and request a client-credentials token with the pattern's scope ([Deploy](#deploy)). The
-  sample's single app client holds every scope so one deployment can exercise every pattern; in production, give each
-  client its own app client with only the scopes it needs.
 
 ## Caching strategy
 
