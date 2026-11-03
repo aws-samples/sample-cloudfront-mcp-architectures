@@ -101,9 +101,9 @@ export function diagram({ name, title, subtitle, width, height, build, titleBloc
       if (num) api.num(num, x - 14, y - 14);
       return iid;
     },
-    // An SRA-style index badge: black circle, white "n.m", at absolute coordinates (its top-left).
+    // An SRA-style index badge: black circle, white number, at absolute coordinates (its top-left).
     num(value, x, y) {
-      cell(`<mxCell id="num-${String(value).replace('.', '-')}" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;fontColor=#FFFFFF;fontStyle=1;fontSize=11;${FONT}" value="${value}" vertex="1" parent="1"><mxGeometry x="${x}" y="${y}" width="28" height="28" as="geometry" /></mxCell>`);
+      cell(`<mxCell id="num-${String(value).replace('.', '-')}" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;fontColor=#FFFFFF;fontStyle=1;fontSize=13;${FONT}" value="${value}" vertex="1" parent="1"><mxGeometry x="${x}" y="${y}" width="28" height="28" as="geometry" /></mxCell>`);
     },
     // A plain text label.
     text(value, { x, y, w, h = 20, color = '#232F3E', size = 12, bold = false, parent = '1', align = 'center' }) {

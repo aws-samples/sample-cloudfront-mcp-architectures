@@ -43,8 +43,8 @@ function write(name, xml) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Pattern 5: ALB. SRA style: bare icons, "n.m" index badges, legend in patterns/5-alb/README.md (Deployed resource
-// details), no title block. Boxes: 1.0 the edge, 2.0 the Region.
+// Pattern 5: ALB. SRA style: bare icons, numbered in request-flow order, legend in patterns/5-alb/README.md (Deployed
+// resource details), no title block.
 write('pattern-5-alb', diagram({
   name: 'pattern-5-alb',
   titleBlock: false,
@@ -56,21 +56,21 @@ write('pattern-5-alb', diagram({
     d.group('awsCloud', 'AWS Cloud', { x: 200, y: 40, w: 1520, h: 620 });
 
     // 1.0 Edge
-    d.group('edge', 'Amazon CloudFront edge (global)', { x: 240, y: 90, w: 400, h: 530, num: '1.0' });
-    const waf = d.icon({ key: 'waf', cat: 'security', label: 'AWS WAF', sub: 'EdgeWaf web ACL', shape: 'waf', x: 300, y: R, num: '1.1' });
-    const cf = d.icon({ key: 'cf', cat: 'networking', label: 'Amazon CloudFront', sub: 'pattern 5 distribution', shape: 'cloudfront', x: 500, y: R, num: '1.2' });
-    const fn = d.icon({ key: 'cff', cat: 'networking', label: 'CloudFront Function', sub: 'viewer request', shape: 'cloudfront_functions', resource: true, x: 500, y: R2, num: '1.3' });
+    d.group('edge', 'Amazon CloudFront edge (global)', { x: 240, y: 90, w: 400, h: 530 });
+    const waf = d.icon({ key: 'waf', cat: 'security', label: 'AWS WAF', sub: 'EdgeWaf: MCP rule stack<br>for every caller', shape: 'waf', x: 300, y: R, num: 1 });
+    const cf = d.icon({ key: 'cf', cat: 'networking', label: 'Amazon CloudFront', sub: 'pattern 5 distribution', shape: 'cloudfront', x: 500, y: R, num: 2 });
+    const fn = d.icon({ key: 'cff', cat: 'networking', label: 'CloudFront Function', sub: 'viewer request', shape: 'cloudfront_functions', resource: true, x: 500, y: R2, num: 3 });
 
     // 2.0 Region
-    d.group('region', 'us-east-1', { x: 700, y: 90, w: 980, h: 530, num: '2.0' });
+    d.group('region', 'us-east-1', { x: 700, y: 90, w: 980, h: 530 });
     d.group('vpc', 'VPC 10.1.0.0/16, two Availability Zones, no NAT gateway', { x: 740, y: 140, w: 660, h: 450 });
     d.group('privateSubnet', 'Isolated subnets', { x: 770, y: 180, w: 600, h: 390 });
-    const owaf = d.icon({ key: 'owaf', cat: 'security', label: 'AWS WAF', sub: 'OriginWaf web ACL', shape: 'waf', x: 820, y: R, num: '2.1' });
-    const alb = d.icon({ key: 'alb', cat: 'networking', label: 'Internal ALB', sub: 'private IPs, HTTP :80', shape: 'application_load_balancer', resource: true, x: 1000, y: R, num: '2.2' });
-    const task = d.icon({ key: 'task', cat: 'compute', label: 'AWS Fargate task', sub: 'hello MCP server', shape: 'fargate', x: 1180, y: R, num: '2.3' });
-    const vpce = d.icon({ key: 'vpce', cat: 'networking', label: 'VPC endpoints', sub: 'ECR, Logs, S3, cognito-idp', shape: 'endpoints', resource: true, x: 1180, y: R2, num: '2.4' });
-    const cog = d.icon({ key: 'cognito', cat: 'security', label: 'Amazon Cognito', sub: 'user pool, scope mcp/alb', shape: 'cognito', x: 1500, y: R2, num: '2.5' });
-    const secret = d.icon({ key: 'secret', cat: 'security', label: 'Secrets Manager', sub: 'x-origin-verify value', shape: 'secrets_manager', x: 1500, y: R, num: '2.6' });
+    const owaf = d.icon({ key: 'owaf', cat: 'security', label: 'AWS WAF', sub: 'OriginWaf: only this distribution<br>(secret header, mcp/ scope)', shape: 'waf', x: 820, y: R, num: 4 });
+    const alb = d.icon({ key: 'alb', cat: 'networking', label: 'Internal ALB', sub: 'private IPs, HTTP :80', shape: 'application_load_balancer', resource: true, x: 1000, y: R, num: 5 });
+    const task = d.icon({ key: 'task', cat: 'compute', label: 'AWS Fargate task', sub: 'hello MCP server', shape: 'fargate', x: 1180, y: R, num: 6 });
+    const vpce = d.icon({ key: 'vpce', cat: 'networking', label: 'VPC endpoints', sub: 'ECR, Logs, S3, cognito-idp', shape: 'endpoints', resource: true, x: 1180, y: R2, num: 7 });
+    const cog = d.icon({ key: 'cognito', cat: 'security', label: 'Amazon Cognito', sub: 'user pool, scope mcp/alb', shape: 'cognito', x: 1500, y: R2, num: 8 });
+    const secret = d.icon({ key: 'secret', cat: 'security', label: 'Secrets Manager', sub: 'x-origin-verify value', shape: 'secrets_manager', x: 1500, y: R, num: 9 });
 
     // Request flow
     d.edge(client, waf, { label: 'POST /mcp' });
