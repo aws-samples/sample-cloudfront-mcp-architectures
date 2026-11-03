@@ -1,0 +1,29 @@
+{
+  "name": "sample-cloudfront-mcp-architectures",
+  "version": "1.0.0",
+  "description": "Remote MCP servers behind Amazon CloudFront, one pattern per origin type",
+  "directories": {
+    "doc": "docs",
+    "lib": "lib"
+  },
+  "scripts": {
+    "postinstall": "npm --prefix server ci",
+    "test": "node --test lib/*.test.mjs patterns/*/*.test.mjs cfn/*.test.mjs && npm --prefix server test",
+    "build": "tsc",
+    "cdk": "cdk",
+    "cfn": "node cfn/synth.mjs"
+  },
+  "license": "MIT-0",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "aws-cdk": "^2.1145.0",
+    "aws-cdk-lib": "^2.273.0",
+    "constructs": "^10.8.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  }
+}

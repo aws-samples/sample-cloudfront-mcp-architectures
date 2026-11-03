@@ -1,0 +1,67 @@
+# 2026-10-13T20:34:05Z stack cfn-proof-alb from cfn/alb.yaml
+## Stack status, tags and parameters
+{
+    "Status": "CREATE_COMPLETE",
+    "Tags": [
+        {
+            "Key": "auto-delete",
+            "Value": "no"
+        }
+    ],
+    "Parameters": [
+        {
+            "ParameterKey": "ImageTag",
+            "ParameterValue": "latest"
+        },
+        {
+            "ParameterKey": "ImageRepository",
+            "ParameterValue": "cfn-proof-hello"
+        }
+    ]
+}
+## Outputs
+UserPoolId	us-east-1_Skx9P2xXm
+AlbMcp	https://d2sfmex70ce4og.cloudfront.net/mcp
+TokenUrl	https://mcp-<uuid>.auth.us-east-1.amazoncognito.com/oauth2/token
+ClientId	<client>
+AlbFargateLoadBalancerDNSD048F453	internal-cfn-pr-AlbFa-UhtjXTO0eQuT-927944129.us-east-1.elb.amazonaws.com
+AlbFargateServiceURL1EEA0B15	http://internal-cfn-pr-AlbFa-UhtjXTO0eQuT-927944129.us-east-1.elb.amazonaws.com
+
+## Token: client credentials for scope mcp/alb, the client secret read with describe-user-pool-client
+{"sub":"<client>","token_use":"access","scope":"mcp/alb","auth_time":1791923652,"iss":"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_Skx9P2xXm","exp":1791923952,"iat":1791923652,"version":2,"jti":"<uuid>","client_id":"<client>"}
+
+## tools/list: expect hello
+$ curl -X POST https://d2sfmex70ce4og.cloudfront.net/mcp -H authorization: Bearer <token> -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+{"result":{"tools":[{"name":"hello","description":"Say hello to someone","inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","properties":{"name":{"type":"string"}},"required":["name"]},"execution":{"taskSupport":"forbidden"}}]},"jsonrpc":"2.0","id":1}
+HTTP 200
+
+## tools/call hello name=cloudformation: expect Hello
+$ curl -X POST https://d2sfmex70ce4og.cloudfront.net/mcp -H authorization: Bearer <token> -D - -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"hello","arguments":{"name":"cloudformation"}}}'
+HTTP/2 200 
+content-type: application/json
+content-length: 94
+date: Tue, 13 Oct 2026 20:34:12 GMT
+x-powered-by: Express
+x-cache: Miss from cloudfront
+via: 1.1 09271a32d559aa027d52f6c914ebff78.cloudfront.net (CloudFront)
+x-amz-cf-pop: PHL51-P1
+x-amz-cf-id: _5nUZKLsDhauLAH-xDh48cd9RPBM0x9xBZDA-N58k6r1hZFsIHVGFg==
+
+{"result":{"content":[{"type":"text","text":"Hello, cloudformation"}]},"jsonrpc":"2.0","id":2}
+HTTP 200
+
+## No token: expect 401 from the CloudFront Function, and no CORS headers (a template has no demo page)
+$ curl -X POST https://d2sfmex70ce4og.cloudfront.net/mcp -D - -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"hello","arguments":{"name":"x"}}}'
+HTTP/2 401 
+server: CloudFront
+date: Tue, 13 Oct 2026 20:34:12 GMT
+content-length: 0
+www-authenticate: Bearer resource_metadata="https://d2sfmex70ce4og.cloudfront.net/.well-known/oauth-protected-resource/mcp"
+x-cache: FunctionGeneratedResponse from cloudfront
+via: 1.1 e681dabd190d3783884c0bade3bdc5ca.cloudfront.net (CloudFront)
+x-amz-cf-pop: PHL51-P1
+x-amz-cf-id: gsd-kSY5na7EmRmdFW4t8Upxmb68hLg270zz4sSTIEFaZ-kJDqciJA==
+
+
+HTTP 401
+
