@@ -87,13 +87,16 @@ export function diagram({ name, title, subtitle, width, height, build, titleBloc
     },
     // A bare AWS icon (SRA style): ICON x ICON, category colour, label and italic sublabel underneath, no container.
     // `num` ("1.2") puts an index badge on its top-left corner. Returns the icon id; edges connect to it.
-    icon({ key, cat = 'general', label, sub, shape, resource = false, x, y, parent = '1', num }) {
+    // `image` (an SVG string) draws that instead of an AWS shape, for non-AWS parties such as the MCP client.
+    icon({ key, cat = 'general', label, sub, shape, image, resource = false, x, y, parent = '1', num }) {
       const c = CAT[cat];
       const iid = `icon-${key}`;
       const value = sub ? `${label}<div><i>${sub}</i></div>` : label;
-      const style = resource
-        ? `sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=${c.stroke};strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${shape};${FONT}`
-        : `sketch=0;${POINTS16}outlineConnect=0;fontColor=#232F3E;fillColor=${c.stroke};strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.${shape};${FONT}`;
+      const style = image
+        ? `shape=image;imageAspect=1;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontColor=#232F3E;fontSize=12;fontStyle=0;${FONT}image=data:image/svg+xml,${Buffer.from(image).toString('base64')};`
+        : resource
+          ? `sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=${c.stroke};strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${shape};${FONT}`
+          : `sketch=0;${POINTS16}outlineConnect=0;fontColor=#232F3E;fillColor=${c.stroke};strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.${shape};${FONT}`;
       cell(`<mxCell id="${iid}" style="${style}" value="${html(value)}" vertex="1" parent="${parent}"><mxGeometry x="${x}" y="${y}" width="${ICON}" height="${ICON}" as="geometry" /></mxCell>`);
       if (num) api.num(num, x - 14, y - 14);
       return iid;

@@ -1,9 +1,11 @@
 // Writes docs/diagrams/<name>/<name>.drawio for every diagram. Then: node docs/diagrams/export.mjs
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { diagram, NODE } from './drawio.mjs';
 
 const here = import.meta.dirname;
+// The MCP mark, from github.com/modelcontextprotocol (docs/favicon.svg, CC BY 4.0); see docs/diagrams/README.md.
+const MCP_ICON = readFileSync(path.join(here, 'assets', 'mcp.svg'), 'utf8');
 const FLOW = 300; // top of the main flow row; icon centre is FLOW + 54
 const ROW2 = FLOW + 170; // second row, under the flow
 const CY = FLOW + 54;
@@ -50,7 +52,7 @@ write('pattern-5-alb', diagram({
   build(d) {
     const R = 240; // icon row (top of the icon); the flow runs along it
     const R2 = R + 190; // second row
-    const client = d.icon({ key: 'client', label: 'MCP client', sub: 'agent, Bearer token', shape: 'client', x: 60, y: R });
+    const client = d.icon({ key: 'client', label: 'MCP client', sub: 'agent, Bearer token', image: MCP_ICON, x: 60, y: R });
     d.group('awsCloud', 'AWS Cloud', { x: 200, y: 40, w: 1520, h: 620 });
 
     // 1.0 Edge

@@ -25,3 +25,7 @@ node docs/diagrams/export.mjs     # <name>.png and <name>.svg; needs Docker (hea
 ```
 
 `export.mjs` accepts diagram names to export a subset. The exports are rendered locally; nothing leaves the machine.
+
+`assets/mcp.svg` is the Model Context Protocol mark, copied from
+[modelcontextprotocol/modelcontextprotocol](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/favicon.svg)
+(documentation assets, CC BY 4.0). It stands for the MCP client in the diagrams.
