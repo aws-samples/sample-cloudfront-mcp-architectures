@@ -1,5 +1,6 @@
-// Emits draw.io XML in the AWS reference-architecture style (official AWS4 icons, category-tinted 120x120 containers,
-// AWS Cloud / Region / VPC / subnet groups, teal step badges, right-hand step legend).
+// Emits draw.io XML in the AWS reference-architecture style: official AWS4 icons, AWS Cloud / Region / VPC / subnet
+// groups. Two looks: category-tinted 120x120 containers with teal step badges and a right-hand legend (service, badge,
+// legend), or bare icons with SRA-style "n.m" index badges whose legend is the README (icon, num, titleBlock: false).
 // Usage: import { diagram } from './drawio.mjs' and write the returned XML to <name>.drawio.
 // Export to PNG/SVG with export.mjs (headless draw.io in a container).
 
@@ -31,11 +32,14 @@ const GROUPS = {
   publicSubnet: { icon: 'group_public_subnet', stroke: '#248814', fill: 'light-dark(#2488140D,#2488140D)', dashed: 0, fontSize: 12, bold: 0, container: 0 },
   securityGroup: { icon: 'group_security_group', stroke: '#DD3522', fill: 'none', dashed: 0, fontSize: 12, bold: 0, container: 0 },
   generic: { icon: null, stroke: '#7D8998', fill: 'none', dashed: 1, fontSize: 12, bold: 0, container: 0 },
+  // The CloudFront edge: global, so outside any Region. Drawn in the CloudFront purple.
+  edge: { icon: null, stroke: '#8C4FFF', fill: 'none', dashed: 0, fontSize: 14, bold: 1, container: 0 },
 };
 
 export const NODE = 120; // container size; icon is 48x48 at (36, 30)
+export const ICON = 56; // bare icon size (SRA style); its label sits underneath
 
-export function diagram({ name, title, subtitle, width, height, build }) {
+export function diagram({ name, title, subtitle, width, height, build, titleBlock = true }) {
   const cells = [];
   let n = 0;
   const id = (p) => `${p}-${++n}`;
@@ -43,18 +47,22 @@ export function diagram({ name, title, subtitle, width, height, build }) {
 
   // Title block
   const titleW = width - 80;
-  cell(`<mxCell id="title-group" connectable="0" style="group;${FONT}" value="" vertex="1" parent="1"><mxGeometry height="83" width="${titleW}" x="40" y="30" as="geometry" /></mxCell>`);
-  cell(`<mxCell id="title-text" style="text;html=1;resizable=1;points=[];autosize=1;align=left;verticalAlign=top;spacingTop=-4;fontSize=30;fontStyle=1;${FONT}" value="${html(title)}" vertex="1" parent="title-group"><mxGeometry height="42" width="${titleW - 100}" as="geometry" /></mxCell>`);
-  cell(`<mxCell id="subtitle-text" style="text;html=1;resizable=0;points=[];autosize=1;align=left;verticalAlign=top;spacingTop=-4;fontSize=16;${FONT}" value="${html(subtitle)}" vertex="1" parent="title-group"><mxGeometry height="25" width="${titleW - 100}" x="5" y="40" as="geometry" /></mxCell>`);
-  cell(`<mxCell id="title-separator" style="line;strokeWidth=2;html=1;fontSize=14;strokeColor=#FF9900;${FONT}" value="" vertex="1" parent="title-group"><mxGeometry height="10" width="${titleW - 10}" x="5" y="70" as="geometry" /></mxCell>`);
+  if (titleBlock) {
+    cell(`<mxCell id="title-group" connectable="0" style="group;${FONT}" value="" vertex="1" parent="1"><mxGeometry height="83" width="${titleW}" x="40" y="30" as="geometry" /></mxCell>`);
+    cell(`<mxCell id="title-text" style="text;html=1;resizable=1;points=[];autosize=1;align=left;verticalAlign=top;spacingTop=-4;fontSize=30;fontStyle=1;${FONT}" value="${html(title)}" vertex="1" parent="title-group"><mxGeometry height="42" width="${titleW - 100}" as="geometry" /></mxCell>`);
+    cell(`<mxCell id="subtitle-text" style="text;html=1;resizable=0;points=[];autosize=1;align=left;verticalAlign=top;spacingTop=-4;fontSize=16;${FONT}" value="${html(subtitle)}" vertex="1" parent="title-group"><mxGeometry height="25" width="${titleW - 100}" x="5" y="40" as="geometry" /></mxCell>`);
+    cell(`<mxCell id="title-separator" style="line;strokeWidth=2;html=1;fontSize=14;strokeColor=#FF9900;${FONT}" value="" vertex="1" parent="title-group"><mxGeometry height="10" width="${titleW - 10}" x="5" y="70" as="geometry" /></mxCell>`);
+  }
 
   const api = {
     // A group boundary. Returns its id; children of container groups use coordinates relative to it.
-    group(type, label, { x, y, w, h, parent = '1' }) {
+    // `num` ("1.0") puts an SRA-style index badge under the group's icon at its top-left corner.
+    group(type, label, { x, y, w, h, parent = '1', num }) {
       const g = GROUPS[type];
       const gid = id(type);
-      const icon = g.icon ? `shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.${g.icon};spacingLeft=30;` : 'rounded=0;';
+      const icon = g.icon ? `shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.${g.icon};spacingLeft=30;` : `rounded=0;${num ? 'spacingLeft=30;' : ''}`;
       cell(`<mxCell id="${gid}" style="${GROUP_POINTS}outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=${g.fontSize};fontStyle=${g.bold};${icon}strokeColor=${g.stroke};fillColor=${g.fill};fillStyle=auto;verticalAlign=top;align=left;fontColor=${g.stroke};dashed=${g.dashed};container=${g.container};pointerEvents=0;collapsible=0;recursiveResize=0;${FONT}" value="${html(label)}" vertex="1" parent="${parent}"><mxGeometry x="${x}" y="${y}" width="${w}" height="${h}" as="geometry" /></mxCell>`);
+      if (num) api.num(num, x - 6, y + (g.icon ? 30 : 4));
       return gid;
     },
     // A service: tinted container (category label) with a 48x48 icon (service name + italic sublabel). Returns the icon id.
@@ -76,6 +84,23 @@ export function diagram({ name, title, subtitle, width, height, build }) {
       cell(`<mxCell id="${cid}" style="fillColor=#f5f5f5;strokeColor=light-dark(#666666,#D4D4D4);rounded=1;whiteSpace=wrap;html=1;verticalAlign=top;fontStyle=1;fontSize=12;fontColor=#333333;${FONT}container=1;collapsible=0;shadow=1;strokeWidth=1;perimeterSpacing=0;" value="${html(label)}" vertex="1" parent="1"><mxGeometry x="${x}" y="${y}" width="${NODE}" height="${NODE}" as="geometry" /></mxCell>`);
       cell(`<mxCell id="${cid}-icon" style="sketch=0;${POINTS16}outlineConnect=0;fontColor=#232F3E;fillColor=#232F3D;strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=10;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.${shape};${FONT}" value="${html(sub ? `<i>${sub}</i>` : '')}" vertex="1" parent="${cid}"><mxGeometry x="36" y="30" width="48" height="48" as="geometry" /></mxCell>`);
       return cid;
+    },
+    // A bare AWS icon (SRA style): ICON x ICON, category colour, label and italic sublabel underneath, no container.
+    // `num` ("1.2") puts an index badge on its top-left corner. Returns the icon id; edges connect to it.
+    icon({ key, cat = 'general', label, sub, shape, resource = false, x, y, parent = '1', num }) {
+      const c = CAT[cat];
+      const iid = `icon-${key}`;
+      const value = sub ? `${label}<div><i>${sub}</i></div>` : label;
+      const style = resource
+        ? `sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=${c.stroke};strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${shape};${FONT}`
+        : `sketch=0;${POINTS16}outlineConnect=0;fontColor=#232F3E;fillColor=${c.stroke};strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.${shape};${FONT}`;
+      cell(`<mxCell id="${iid}" style="${style}" value="${html(value)}" vertex="1" parent="${parent}"><mxGeometry x="${x}" y="${y}" width="${ICON}" height="${ICON}" as="geometry" /></mxCell>`);
+      if (num) api.num(num, x - 14, y - 14);
+      return iid;
+    },
+    // An SRA-style index badge: black circle, white "n.m", at absolute coordinates (its top-left).
+    num(value, x, y) {
+      cell(`<mxCell id="num-${String(value).replace('.', '-')}" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;fontColor=#FFFFFF;fontStyle=1;fontSize=11;${FONT}" value="${value}" vertex="1" parent="1"><mxGeometry x="${x}" y="${y}" width="28" height="28" as="geometry" /></mxCell>`);
     },
     // A plain text label.
     text(value, { x, y, w, h = 20, color = '#232F3E', size = 12, bold = false, parent = '1', align = 'center' }) {

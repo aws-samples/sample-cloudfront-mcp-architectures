@@ -41,40 +41,45 @@ function write(name, xml) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Pattern 5: ALB
+// Pattern 5: ALB. SRA style: bare icons, "n.m" index badges, legend in patterns/5-alb/README.md (Deployed resource
+// details), no title block. Boxes: 1.0 the edge, 2.0 the Region.
 write('pattern-5-alb', diagram({
   name: 'pattern-5-alb',
-  title: 'Pattern 5: Remote MCP server on an internal Application Load Balancer',
-  subtitle: 'CloudFront reaches a private ALB through a VPC origin; AWS WAF inspects at the edge and again on the ALB; the Fargate task verifies the OAuth token',
-  width: 2300, height: 760,
+  titleBlock: false,
+  width: 1760, height: 700,
   build(d) {
-    const { cf } = edge(d, { cloudW: 1420, pattern: 'pattern 5 distribution, /mcp', scope: 'mcp/alb' });
-    d.group('region', 'us-east-1', { x: 680, y: 200, w: 920, h: 480 });
-    d.group('vpc', 'VPC 10.1.0.0/16, two Availability Zones, no NAT gateway', { x: 710, y: 240, w: 640, h: 410 });
-    d.group('privateSubnet', 'Isolated subnets', { x: 740, y: 280, w: 580, h: 350 });
-    const owaf = d.service({ key: 'owaf', cat: 'security', category: 'Origin security', label: 'AWS WAF', sub: 'OriginWaf, regional', shape: 'waf', x: 780, y: FLOW });
-    const alb = d.service({ key: 'alb', cat: 'networking', category: 'Load balancing', label: 'Internal ALB', sub: 'private IPs, port 80', shape: 'application_load_balancer', resource: true, x: 960, y: FLOW });
-    const task = d.service({ key: 'task', cat: 'compute', category: 'Compute', label: 'AWS Fargate task', sub: 'hello MCP server', shape: 'fargate', x: 1140, y: FLOW });
-    const vpce = d.service({ key: 'vpce', cat: 'networking', category: 'Private connectivity', label: 'VPC endpoints', sub: 'ECR, Logs, S3, cognito-idp', shape: 'endpoints', resource: true, x: 1140, y: ROW2 });
-    const cog = cognito(d, { x: 1420, scope: 'mcp/alb' });
-    d.edge(cf, owaf, { label: 'VPC origin, HTTP :80<br>x-origin-verify, x-jwt-claims', at: -0.45, dy: 34 });
-    d.badge(4, mid(440, 780) - 14, BADGE_Y(FLOW));
+    const R = 240; // icon row (top of the icon); the flow runs along it
+    const R2 = R + 190; // second row
+    const client = d.icon({ key: 'client', label: 'MCP client', sub: 'agent, Bearer token', shape: 'client', x: 60, y: R });
+    d.group('awsCloud', 'AWS Cloud', { x: 200, y: 40, w: 1520, h: 620 });
+
+    // 1.0 Edge
+    d.group('edge', 'Amazon CloudFront edge (global)', { x: 240, y: 90, w: 400, h: 530, num: '1.0' });
+    const waf = d.icon({ key: 'waf', cat: 'security', label: 'AWS WAF', sub: 'EdgeWaf web ACL', shape: 'waf', x: 300, y: R, num: '1.1' });
+    const cf = d.icon({ key: 'cf', cat: 'networking', label: 'Amazon CloudFront', sub: 'pattern 5 distribution', shape: 'cloudfront', x: 500, y: R, num: '1.2' });
+    const fn = d.icon({ key: 'cff', cat: 'networking', label: 'CloudFront Function', sub: 'viewer request', shape: 'cloudfront_functions', resource: true, x: 500, y: R2, num: '1.3' });
+
+    // 2.0 Region
+    d.group('region', 'us-east-1', { x: 700, y: 90, w: 980, h: 530, num: '2.0' });
+    d.group('vpc', 'VPC 10.1.0.0/16, two Availability Zones, no NAT gateway', { x: 740, y: 140, w: 660, h: 450 });
+    d.group('privateSubnet', 'Isolated subnets', { x: 770, y: 180, w: 600, h: 390 });
+    const owaf = d.icon({ key: 'owaf', cat: 'security', label: 'AWS WAF', sub: 'OriginWaf web ACL', shape: 'waf', x: 820, y: R, num: '2.1' });
+    const alb = d.icon({ key: 'alb', cat: 'networking', label: 'Internal ALB', sub: 'private IPs, HTTP :80', shape: 'application_load_balancer', resource: true, x: 1000, y: R, num: '2.2' });
+    const task = d.icon({ key: 'task', cat: 'compute', label: 'AWS Fargate task', sub: 'hello MCP server', shape: 'fargate', x: 1180, y: R, num: '2.3' });
+    const vpce = d.icon({ key: 'vpce', cat: 'networking', label: 'VPC endpoints', sub: 'ECR, Logs, S3, cognito-idp', shape: 'endpoints', resource: true, x: 1180, y: R2, num: '2.4' });
+    const cog = d.icon({ key: 'cognito', cat: 'security', label: 'Amazon Cognito', sub: 'user pool, scope mcp/alb', shape: 'cognito', x: 1500, y: R2, num: '2.5' });
+    const secret = d.icon({ key: 'secret', cat: 'security', label: 'Secrets Manager', sub: 'x-origin-verify value', shape: 'secrets_manager', x: 1500, y: R, num: '2.6' });
+
+    // Request flow
+    d.edge(client, waf, { label: 'POST /mcp' });
+    d.edge(waf, cf, { label: 'allowed' });
+    d.edge(cf, fn, { exit: [0.5, 1], entry: [0.5, 0], both: true, elbow: 'vertical', label: '401 or x-jwt-claims', at: 0, dy: 0, dx: 74 });
+    d.edge(cf, owaf, { label: 'VPC origin, HTTP :80<br>x-origin-verify, x-jwt-claims', dy: 34 });
     d.edge(owaf, alb, { label: 'allowed' });
-    d.badge(5, mid(780, 960) - 14, BADGE_Y(FLOW));
-    d.edge(alb, task, { label: 'port 8000' });
-    d.badge(6, mid(960, 1140) - 14, BADGE_Y(FLOW));
-    d.edge(task, vpce, { exit: [0.5, 1], entry: [0.5, 0], elbow: 'vertical', label: 'image, logs, JWKS', at: 0, dy: 0, dx: 66 });
+    d.edge(alb, task, { label: ':8000' });
+    d.edge(task, vpce, { exit: [0.5, 1], entry: [0.5, 0], elbow: 'vertical', label: 'image, logs, JWKS', at: 0, dy: 0, dx: 70 });
     d.edge(vpce, cog, { label: 'AWS PrivateLink' });
-    d.badge(7, mid(1140, 1420) - 14, BADGE_Y(ROW2));
-    d.legend([
-      { title: 'AWS WAF at the edge', text: 'The client sends a JSON-RPC POST with a Bearer token. The CloudFront-scope web ACL runs before anything else: IP reputation, rate limits per IP, per initialize and per tool, Bot Control labels, body size, protocol version, tool allowlist, and SSRF, destructive SQL, SQLi and XSS in tool arguments.' },
-      { title: 'CloudFront distribution', text: 'Serves MCP at /mcp with caching disabled and caches /.well-known/*. TLS ends at the edge location; connections to the origin are reused.' },
-      { title: 'CloudFront Function (viewer request)', text: 'Decodes the JWT and returns 401 with resource_metadata for a missing, malformed or expired token, and sets x-jwt-claims and x-forwarded-host for the origin.' },
-      { title: 'VPC origin to a private ALB', text: 'The ALB has only private IPs; its security group admits port 80 from the CloudFront origin-facing prefix list. CloudFront adds the secret x-origin-verify header on every origin request.' },
-      { title: 'Regional AWS WAF on the ALB', text: 'Default block. Allows only requests with the secret header and an mcp/ scope in x-jwt-claims, and repeats the tool-argument rules, so a workload inside the VPC cannot skip the edge checks.' },
-      { title: 'Fargate task verifies the token', text: 'The hello server checks the RS256 signature and the mcp/alb scope against the Cognito JWKS, serves the RFC 9728 protected-resource metadata, then answers the tools/call.' },
-      { title: 'No NAT gateway', text: 'Isolated subnets. The task pulls its image from Amazon ECR, writes logs and fetches the JWKS through interface and gateway VPC endpoints over AWS PrivateLink.' },
-    ], { x: 1680 });
+    d.edge(secret, cf, { exit: [0.5, 0], entry: [0.5, 0], elbow: 'vertical', color: '#999999', dashed: true, label: 'x-origin-verify value, read at deploy into the origin header and the OriginWaf rule', at: 0, dy: -12, points: [[1528, 72], [528, 72]] });
   },
 }));
 
