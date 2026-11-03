@@ -209,34 +209,37 @@ write('overview', diagram({
 }));
 
 // ---------------------------------------------------------------------------------------------------------------------
-// MCP authorization flow
+// MCP authorization flow. Steps in time order, numbered on the arrows; the legend is the README's Authentication section.
 write('mcp-auth-flow', diagram({
   name: 'mcp-auth-flow',
-  title: 'MCP authorization flow: decoded at the edge, verified at the origin',
-  subtitle: 'What an MCP client does from the first unauthenticated call to an authorized tools/call, and where each step is answered',
-  width: 1900, height: 620,
+  titleBlock: false,
+  width: 1560, height: 760,
   build(d) {
-    const client = d.actor({ key: 'client', label: 'MCP client', sub: 'agent', x: 40, y: FLOW });
-    d.group('awsCloud', 'AWS Cloud', { x: 220, y: 150, w: 1060, h: 440 });
-    const waf = d.service({ key: 'waf', cat: 'security', category: 'Edge security', label: 'AWS WAF', sub: 'EdgeWaf', shape: 'waf', x: 280, y: FLOW });
-    const fn = d.service({ key: 'cff', cat: 'networking', category: 'Edge compute', label: 'CloudFront Function', sub: 'decodes, does not verify', shape: 'cloudfront_functions', resource: true, x: 480, y: FLOW });
-    const origin = d.service({ key: 'origin', cat: 'compute', category: 'Origin', label: 'MCP server', sub: 'verifies signature and scope', shape: 'fargate', x: 760, y: FLOW });
-    const cog = d.service({ key: 'cognito', cat: 'security', category: 'Identity', label: 'Amazon Cognito', sub: 'authorization server', shape: 'cognito', x: 1080, y: FLOW });
-    d.edge(client, waf, { label: 'every request' });
-    d.edge(waf, fn, { exit: [1, 0.5], entry: [0, 0.5] });
-    d.edge(fn, client, { exit: [0.5, 0], entry: [0.5, 0], elbow: 'vertical', label: '401 WWW-Authenticate: Bearer resource_metadata=...', at: 0, dy: -14, points: [[540, 220], [100, 220]] });
-    d.badge(1, 130, 196);
-    d.edge(fn, origin, { label: 'x-jwt-claims, x-forwarded-host' });
-    d.badge(2, mid(480, 760) - 14, BADGE_Y(FLOW));
-    d.edge(client, cog, { exit: [0.5, 1], entry: [0.5, 1], elbow: 'vertical', label: 'client credentials, scope=mcp/&lt;pattern&gt;  \u2192  access token', at: 0, dy: 14, points: [[100, 560], [1140, 560]] });
-    d.badge(3, 600, 536);
-    d.edge(origin, cog, { label: 'JWKS' });
-    d.badge(4, mid(760, 1080) - 14, BADGE_Y(FLOW));
-    d.legend([
-      { title: 'Discovery: 401 from the edge', text: 'A request without a usable token gets 401 with WWW-Authenticate: Bearer resource_metadata="https://&lt;distribution&gt;/.well-known/oauth-protected-resource/mcp" from the CloudFront Function, after the web ACL. The origin serves that RFC 9728 document (cached by CloudFront); on pattern 1 the function answers it.' },
-      { title: 'Edge pre-filter', text: 'The function decodes the JWT and refuses a missing, malformed, expired, wrong-issuer or non-access token at the edge. It does not check the signature (CloudFront Functions have no RSA verify), so it replaces any client-sent x-jwt-claims with the decoded payload for the regional WAF.' },
-      { title: 'Token from Cognito', text: 'The client follows the metadata to the issuer and requests a client-credentials token with the pattern\u2019s scope. Scopes stand in for an audience: a token for one pattern is refused by the others.' },
-      { title: 'Verified at the origin', text: 'Each origin checks the RS256 signature against the Cognito JWKS and requires its own scope: the AgentCore Gateway authorizer, the API Gateway Cognito authorizer, or the hello server itself (web function, ALB). A tampered payload passes the edge and fails here.' },
-    ], { x: 1320 });
+    const client = d.icon({ key: 'client', label: 'MCP client', sub: 'agent', image: MCP_ICON, x: 60, y: R });
+    d.group('awsCloud', 'AWS Cloud', { x: 200, y: 40, w: 1320, h: 700 });
+    d.group('edge', 'Amazon CloudFront edge (global)', { x: 240, y: 90, w: 400, h: 570 });
+    const waf = d.icon({ key: 'waf', cat: 'security', label: 'AWS WAF', sub: 'EdgeWaf', shape: 'waf', x: 300, y: R });
+    const cf = d.icon({ key: 'cf', cat: 'networking', label: 'Amazon CloudFront', sub: 'the pattern distribution', shape: 'cloudfront', x: 500, y: R });
+    const fn = d.icon({ key: 'cff', cat: 'networking', label: 'CloudFront Function', sub: 'decodes, does not verify', shape: 'cloudfront_functions', resource: true, x: 500, y: R2 });
+    d.group('region', 'us-east-1', { x: 700, y: 90, w: 780, h: 570 });
+    const origin = d.icon({ key: 'origin', cat: 'compute', label: 'MCP server (the origin)', sub: 'verifies signature and scope', shape: 'servers', resource: true, x: 880, y: R });
+    const cog = d.icon({ key: 'cognito', cat: 'security', label: 'Amazon Cognito', sub: 'authorization server', shape: 'cognito', x: 1300, y: R });
+    // 1: no token, 401 from the edge
+    d.edge(client, waf, { label: 'POST /mcp', dy: -14 });
+    d.num(1, 140, R - 10);
+    d.edge(waf, cf, { label: 'allowed', dy: -14 });
+    d.edge(cf, fn, { exit: [0.5, 1], entry: [0.5, 0], both: true, elbow: 'vertical' });
+    d.edge(fn, client, { exit: [0, 0.5], entry: [0.5, 1], elbow: 'horizontal', color: '#999999', dashed: true, label: '401<br>WWW-Authenticate: Bearer resource_metadata="https://&lt;distribution&gt;/.well-known/oauth-protected-resource/mcp"', at: -0.5, dy: 22, points: [[88, R2 + 28]] });
+    // 2: discovery, served by the origin and cached by CloudFront
+    d.edge(cf, origin, { label: 'GET /.well-known/oauth-protected-resource/mcp  (cached)', dy: -36 });
+    d.num(2, 466, R - 24);
+    // 3 and 4: the issuer's metadata, then a token, straight from the client to Cognito
+    d.edge(client, cog, { exit: [0.5, 1], entry: [0.5, 1], elbow: 'vertical', label: 'GET /.well-known/openid-configuration, then POST /oauth2/token  (client credentials, scope=mcp/&lt;pattern&gt;)  \u2192  access token', at: 0, dy: 14, points: [[88, 700], [1328, 700]] });
+    d.num(3, 108, 672); d.num(4, 140, 672);
+    // 5: the authorized call through the edge, 6: verified at the origin
+    d.edge(cf, origin, { label: 'POST /mcp, Bearer token<br>x-jwt-claims, x-forwarded-host', dy: 34 });
+    d.num(5, 704, R + 84);
+    d.edge(origin, cog, { label: 'JWKS', dy: -14 });
+    d.num(6, 1070, R - 10);
   },
 }));

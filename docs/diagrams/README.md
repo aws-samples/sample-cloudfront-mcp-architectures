@@ -11,14 +11,13 @@ desktop) and two exports embedded in the READMEs, `<name>.svg` and `<name>.png`.
 | [pattern-3-eks](pattern-3-eks/pattern-3-eks.svg) | Pattern 3: VPC origin, internal ALB with regional AWS WAF, MCP server pods on Amazon EKS registered by the AWS Load Balancer Controller |
 | [pattern-4-web-function](pattern-4-web-function/pattern-4-web-function.svg) | Pattern 4: origin access control (SigV4) on the web function's regional endpoint |
 | [pattern-5-alb](pattern-5-alb/pattern-5-alb.svg) | Pattern 5: VPC origin, internal ALB with regional AWS WAF, Fargate task, VPC endpoints instead of NAT |
-| [mcp-auth-flow](mcp-auth-flow/mcp-auth-flow.svg) | The MCP authorization flow: 401 and discovery, the token, then the authorized calls |
+| [mcp-auth-flow](mcp-auth-flow/mcp-auth-flow.svg) | The MCP authorization flow: 401 and discovery, the token, then the authorized call, numbered as in the root README |
 
 The pattern diagrams follow the style of the [AWS Security Reference Architecture examples](https://github.com/aws-samples/aws-security-reference-architecture-examples):
 official AWS Architecture Icons from draw.io's AWS4 library, AWS Cloud, Region, VPC and subnet boundaries in their
 standard colors, and a black number on every resource that matches a numbered line and a heading in the pattern's
-README, which is the legend. The request flow is drawn as labeled arrows. The overview and the authorization flow use
-category-tinted containers with a legend inside the image. `drawio.mjs` encodes both. `build.mjs` defines each diagram
-against it.
+README, which is the legend. The request flow is drawn as labeled arrows. The overview uses category-tinted containers with a legend
+inside the image. `drawio.mjs` encodes both. `build.mjs` defines each diagram against it.
 
 To change a diagram, edit its definition in `build.mjs` (or edit the `.drawio` directly in draw.io for a one-off), then
 regenerate and export:

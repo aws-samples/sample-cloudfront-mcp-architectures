@@ -52,7 +52,23 @@ own scope: `mcp/agentcore`, `mcp/api-gateway`, `mcp/web-function` or `mcp/alb`. 
 the others. CloudFront filters at the edge, and the origin checks the signature and the scope with its own native
 verifier, so a customer who copies one pattern gets the check that pattern's origin offers.
 
-![MCP authorization flow: 401 with resource_metadata, protected-resource metadata, authorization server metadata, token, then initialize and tools calls. Decoded at the edge, verified at the origin](docs/diagrams/mcp-auth-flow/mcp-auth-flow.svg)
+![MCP authorization flow: the client gets a 401 from the CloudFront Function, fetches the protected-resource metadata through CloudFront, gets a token from Amazon Cognito, then calls /mcp with it. Decoded at the edge, verified at the origin](docs/diagrams/mcp-auth-flow/mcp-auth-flow.svg)
+
+1. **First call, no token.** The client sends `POST /mcp`. AWS WAF runs its rules, CloudFront passes the request to the
+   CloudFront Function, and the function answers `401` with
+   `WWW-Authenticate: Bearer resource_metadata="https://<distribution>/.well-known/oauth-protected-resource/mcp"`. The
+   origin is not called.
+2. **Discovery.** The client fetches that RFC 9728 document. The origin serves it (on pattern 1 the function does) and
+   CloudFront caches it. It names the distribution's `/mcp` as `resource` and the Cognito user pool as its authorization
+   server.
+3. **Issuer metadata.** The client reads the user pool's `/.well-known/openid-configuration` to find the token endpoint.
+4. **Token.** The client requests a client-credentials token with the pattern's scope (`scope=mcp/<pattern>`) and
+   receives an RS256 access token. A token for one pattern is refused by the others.
+5. **Authorized call.** The client repeats `POST /mcp` with `Authorization: Bearer <token>`. The function decodes the
+   token, refuses it at the edge if it is malformed, expired, from another issuer or not an access token, and otherwise
+   forwards the request with the decoded claims in `x-jwt-claims`. It does not check the signature.
+6. **Verified at the origin.** The origin fetches the user pool's keys (JWKS), verifies the signature and its own scope,
+   and answers. A token whose claims were edited after signing passes the edge and fails here.
 
 - **The issuer.** One Cognito user pool ([lib/auth.ts](lib/auth.ts)) issues RS256 access tokens for the resource
   server `mcp`, with one scope per pattern, to one app client using the client credentials grant. The client asks for
