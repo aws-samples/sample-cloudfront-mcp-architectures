@@ -12,6 +12,26 @@ task, the ALB and four interface endpoints.
 
 ![Pattern 5: the edge (AWS WAF, the distribution, the CloudFront Function) and the Region (regional AWS WAF, internal ALB, Fargate task and VPC endpoints in isolated subnets; Amazon Cognito and the origin secret), numbered as below](../../docs/diagrams/pattern-5-alb/pattern-5-alb.svg)
 
+1. **AWS WAF at the edge** inspects the `POST /mcp` before anything else runs: IP reputation, rate limits per IP,
+   per `initialize` and per tool, body size, protocol version, tool allowlist, and SSRF, SQL and XSS in tool arguments.
+2. **The CloudFront distribution** receives what the web ACL allowed. TLS has ended at the edge location; `/mcp` is not
+   cached, `/.well-known/*` is.
+3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge if it is missing, malformed,
+   expired or from another issuer. For a good token it writes the decoded claims into `x-jwt-claims` and sends the
+   request on; it cannot verify the signature, so it never trusts the token on its own.
+4. **AWS WAF on the ALB** admits only requests carrying CloudFront's secret `x-origin-verify` header and an `mcp/` scope
+   in `x-jwt-claims`, so nothing that skipped steps 1 to 3 reaches the ALB, even from inside the VPC.
+5. **The internal ALB** has private IPs only. CloudFront reaches it through a VPC origin; its security group admits the
+   CloudFront origin-facing prefix list and nothing else.
+6. **The Fargate task** runs the MCP server. It verifies the token's RS256 signature and the `mcp/alb` scope against the
+   Cognito keys, then answers the `tools/call`.
+7. **VPC endpoints** stand in for a NAT gateway: the task pulls its image, writes logs and fetches the Cognito keys over
+   AWS PrivateLink.
+8. **Amazon Cognito** issues the tokens (client credentials, one scope per pattern) and publishes the keys that step 6
+   verifies against.
+9. **Secrets Manager** holds the random `x-origin-verify` value. At deploy the stack reads it into the distribution's
+   origin header (2) and the regional web ACL's rule (4); it is never sent to clients.
+
 ### The edge
 
 Global. Every request enters the edge location nearest the client, where TLS ends and where 1 to 3 run, in that
