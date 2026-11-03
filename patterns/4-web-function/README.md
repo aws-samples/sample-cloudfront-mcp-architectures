@@ -6,7 +6,7 @@ Its own CloudFront distribution (`/mcp`) → CloudFront, signing with origin acc
 The strongest lock without a private network. The endpoint is public but takes `IamAuth`: CloudFront signs every origin
 request with SigV4, and the function's resource policy grants the invoke permission only for this distribution, so Lambda
 refuses anything else before your code runs. Nothing in front of the function checks tokens, so the server verifies them
-itself. Pay per use with no VPC, load balancer or NAT; Node.js from a zip only, and one web ACL layer rather than two.
+itself. Pay per use with no VPC, load balancer or NAT. Node.js from a zip only, and one web ACL layer rather than two.
 
 ## Deployed resource details
 
@@ -17,7 +17,7 @@ itself. Pay per use with no VPC, load balancer or NAT; Node.js from a zip only, 
 2. **The CloudFront distribution** receives what the web ACL allowed and sends it to the web function's regional
    endpoint over HTTPS, signed with SigV4 by the origin access control (4). `/mcp` is not cached.
 3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge for a missing, malformed, expired
-   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`; it cannot verify the signature.
+   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`. It cannot verify the signature.
 4. **Origin access control** makes CloudFront sign every origin request with SigV4 and keep the viewer's
    `Authorization` header, so the bearer token still reaches the server.
 5. **The Lambda Web Function** takes `IamAuth` on its endpoint: Lambda checks the SigV4 signature against the resource
@@ -25,7 +25,7 @@ itself. Pay per use with no VPC, load balancer or NAT; Node.js from a zip only, 
    scope and answers the `tools/call`.
 6. **The resource policy** grants `lambda:InvokeWebFunctionEndpoint` to `cloudfront.amazonaws.com` only when the
    request comes from this distribution (`aws:SourceArn`). Another distribution, even in the same account, is refused.
-7. **The versioned S3 bucket** holds the server zip; the function's revision reads it with Lambda's own service
+7. **The versioned S3 bucket** holds the server zip. The function's revision reads it with Lambda's own service
    principal.
 8. **Amazon Cognito** issues the tokens and publishes the keys the server (5) verifies against.
 
@@ -47,7 +47,7 @@ Region sees anything.
   `MultiRegion` endpoint (`.lambda-web.global.on.aws`) needs a `sigv4a` OAC, and OAC is not supported when the global
   endpoint includes opt-in Regions.
 - Uses `AllViewerExceptHostHeader`: the endpoint expects its own hostname and returns 404 otherwise.
-- Lambda@Edge origin-request and origin-response triggers are not supported on this behavior; CloudFront Functions
+- Lambda@Edge origin-request and origin-response triggers are not supported on this behavior. CloudFront Functions
   (viewer request and response) are, which is where the token pre-filter lives.
 - If the server reads the viewer's `Authorization` header on `GET` or `HEAD`, add it to the cache policy, or CloudFront
   removes it. MCP calls are `POST`, so the hello path does not need this.
@@ -57,7 +57,7 @@ Region sees anything.
 #### 3. CloudFront Function (viewer request)
 
 - [lib/viewer-request.js](../../lib/viewer-request.js). Decodes the token and answers `401` with
-  `WWW-Authenticate: Bearer resource_metadata=...`; sets `x-jwt-claims` and `x-forwarded-host`. There is no regional
+  `WWW-Authenticate: Bearer resource_metadata=...`. Sets `x-jwt-claims` and `x-forwarded-host`. There is no regional
   web ACL on this pattern, so nothing matches on `x-jwt-claims` before the server.
 
 #### 4. Origin access control
@@ -75,9 +75,9 @@ Region sees anything.
   pinned to the object version the deployment wrote) and `AWS::Lambda::WebFunctionEndpoint` (`HomeRegion` endpoint
   `mcp`, auth type `IamAuth`, 100 % of traffic on the revision).
 - The endpoint uses `IamAuth`, so Lambda rejects any request without a valid SigV4 signature before the code runs. The
-  endpoint stays publicly resolvable; the lock is IAM, not the network. No shared secret is involved.
+  endpoint stays publicly resolvable. The lock is IAM, not the network. No shared secret is involved.
 - Web functions run a zip on a managed Node.js runtime, not a container image. The revision ships the same `server.js`
-  the other patterns run in the shared image; the runtime loads it through `AWS_LAMBDA_NODEJS_ENTRYPOINT`, and the server
+  the other patterns run in the shared image. The runtime loads it through `AWS_LAMBDA_NODEJS_ENTRYPOINT`, and the server
   listens on the address in `AWS_LAMBDA_HTTP_ENDPOINT`. No Lambda Web Adapter is needed.
 - A code change creates a new revision (its build configuration is create-only), CloudFormation points the endpoint at
   it, then deletes the old one. The endpoint domain name does not change.
@@ -100,8 +100,8 @@ Region sees anything.
 
 #### 8. Amazon Cognito user pool
 
-- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)); this pattern's scope is `mcp/web-function`. The
-  stack outputs `TokenUrl`, `UserPoolId` and `ClientId`; the [root README](../../README.md#deploy) shows how to get a
+- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)). This pattern's scope is `mcp/web-function`. The
+  stack outputs `TokenUrl`, `UserPoolId` and `ClientId`. The [root README](../../README.md#deploy) shows how to get a
   token.
 
 ## Deploy with CloudFormation

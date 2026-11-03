@@ -4,7 +4,7 @@ Its own CloudFront distribution (`/mcp`, stack output `AgentCoreMcp`) → Amazon
 Runtime running the hello image.
 
 The managed path: nothing to run and no VPC. The Gateway is a public endpoint, so a regional AWS WAF web ACL on it
-accepts only requests carrying CloudFront's secret header; the Gateway's own JWT authorizer verifies the token before
+accepts only requests carrying CloudFront's secret header. The Gateway's own JWT authorizer verifies the token before
 any target is called, and the Runtime accepts only the Gateway's role. The first call after idle sees a cold start, and
 tool names arrive as `<target>___<tool>`.
 
@@ -27,7 +27,7 @@ tool names arrive as `<target>___<tool>`.
 6. **The AgentCore Runtime** runs the hello image and serves the MCP protocol. Its inbound authorizer is IAM: only the
    Gateway's role, signing with SigV4, can invoke it.
 7. **Amazon Cognito** issues the tokens and publishes the discovery document and keys the Gateway (5) verifies against.
-8. **Secrets Manager** holds the random `x-origin-verify` value; at deploy the stack reads it into the distribution's
+8. **Secrets Manager** holds the random `x-origin-verify` value. At deploy the stack reads it into the distribution's
    origin header (2) and the regional web ACL's rule (4).
 
 ### The edge
@@ -56,7 +56,7 @@ before the Region sees anything.
 #### 3. CloudFront Function (viewer request)
 
 - [lib/viewer-request.js](../../lib/viewer-request.js) with `METADATA_SCOPE` set to `mcp/agentcore`. Decodes the token
-  and answers `401` with `WWW-Authenticate: Bearer resource_metadata=...` without calling the Gateway; sets
+  and answers `401` with `WWW-Authenticate: Bearer resource_metadata=...` without calling the Gateway. Sets
   `x-jwt-claims` for the regional web ACL (4).
 - Answers `GET /.well-known/oauth-protected-resource/mcp` at the edge (`x-cache: FunctionGeneratedResponse`), with
   `resource` set to `https://<distribution>/mcp`, the Cognito issuer and the scope. The Gateway publishes its own
@@ -68,8 +68,8 @@ before the Region sees anything.
 #### 4. AWS WAF web ACL `OriginWaf`
 
 - Regional, associated with the Gateway, shared with the REST API stage (pattern 2) and the ALB (pattern 5). Default
-  block; allows only requests with the exact `x-origin-verify` value and an `mcp/` scope in `x-jwt-claims`.
-- This is the origin lock. The Gateway endpoint is public and takes no security group or resource policy that could
+  block. Allows only requests with the exact `x-origin-verify` value and an `mcp/` scope in `x-jwt-claims`.
+- This is the origin lock. The Gateway endpoint is public and takes no security group or resource policy that can
   name CloudFront, so the shared secret checked here is what keeps direct callers out. A call straight to the Gateway
   gets HTTP 403 with the JSON-RPC error `-32002` (`Forbidden - Request blocked by AWS WAF`) and never reaches the
   Runtime. The Gateway's WAF failure mode is left at its default, `FAIL_CLOSE`.
@@ -90,7 +90,7 @@ before the Region sees anything.
 
 #### 6. AgentCore Runtime
 
-- Runs the shared arm64 hello image with the MCP protocol; the Runtime serves the container's `POST :8000/mcp`.
+- Runs the shared arm64 hello image with the MCP protocol. The Runtime serves the container's `POST :8000/mcp`.
 - Inbound authorizer IAM: only SigV4-signed callers with `bedrock-agentcore:InvokeAgentRuntime` can reach it, and the
   Gateway's role is the only principal allowed. The Runtime has no lock of its own to CloudFront because CloudFront never
   calls it.
@@ -98,8 +98,8 @@ before the Region sees anything.
 
 #### 7. Amazon Cognito user pool
 
-- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)); this pattern's scope is `mcp/agentcore`. The stack
-  outputs `TokenUrl`, `UserPoolId` and `ClientId`; the [root README](../../README.md#deploy) shows how to get a token.
+- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)). This pattern's scope is `mcp/agentcore`. The stack
+  outputs `TokenUrl`, `UserPoolId` and `ClientId`. The [root README](../../README.md#deploy) shows how to get a token.
 
 #### 8. AWS Secrets Manager secret
 

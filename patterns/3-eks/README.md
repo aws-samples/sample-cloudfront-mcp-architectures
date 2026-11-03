@@ -10,8 +10,8 @@ replaces the Fargate task with pods.
 The recommended design keeps the origin private and puts AWS WAF at two layers:
 
 - a **CloudFront VPC origin** to an **internal ALB** (or NLB) in private subnets, so the cluster has
-  no public entry point;
-- a **CloudFront-scope web ACL** on the distribution, which stops floods and bad bots at the edge;
+  no public entry point.
+- a **CloudFront-scope web ACL** on the distribution, which stops floods and bad bots at the edge.
 - a **regional web ACL on the internal ALB**, which checks what reaches the VPC: the secret origin
   header, tighter per-path rate limits and rules that only make sense near the app.
 
@@ -22,10 +22,10 @@ The recommended design keeps the origin private and puts AWS WAF at two layers:
 2. **The CloudFront distribution** for this pattern receives what the web ACL allowed and sends it through a VPC origin
    with the secret `x-origin-verify` header added. `/mcp` is not cached, `/.well-known/*` is.
 3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge for a missing, malformed, expired
-   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`; it cannot verify the signature.
+   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`. It cannot verify the signature.
 4. **AWS WAF on the ALB** admits only requests with the secret header and the pattern's scope in `x-jwt-claims`, so
    nothing that skipped steps 1 to 3 reaches the cluster, even from inside the VPC.
-5. **The internal ALB** has private IPs only, in private subnets. CloudFront reaches it through the VPC origin; its
+5. **The internal ALB** has private IPs only, in private subnets. CloudFront reaches it through the VPC origin. Its
    security group admits the CloudFront origin-facing prefix list and nothing else.
 6. **The MCP server pods** are the ALB's targets (target type `ip`). They verify the token's signature and scope with
    the SDK's bearer-auth middleware, a sidecar or a check like `server/auth.js`, then answer the `tools/call`.
@@ -159,7 +159,7 @@ Use all four layers. Each covers a gap in the one before.
    `OriginWaf` (`lib/waf.ts`) does, and require a scope in the `x-jwt-claims` header the edge
    function sets. Add per-path rate limits and managed rule groups. The CloudFront web ACL already ran at the edge,
    so this layer sees only traffic that came through CloudFront, plus anything inside the VPC that can
-   reach the ALB. An NLB cannot have a web ACL; behind an NLB, the in-cluster gateway takes this role.
+   reach the ALB. An NLB cannot have a web ACL. Behind an NLB, the in-cluster gateway takes this role.
 
 Kubernetes `NetworkPolicy` adds a fifth layer inside the cluster: deny traffic to the MCP pods from
 other namespaces.
@@ -174,10 +174,10 @@ edge, and the signature checked at the origin with its native verifier.
 
 | Where | How | Trade-off |
 |---|---|---|
-| Edge | The viewer-request CloudFront Function ([lib/viewer-request.js](../../lib/viewer-request.js)) decodes the token and answers `401` with `WWW-Authenticate: Bearer resource_metadata=...` for a missing, malformed, expired or foreign token. It sets `x-jwt-claims` to the decoded payload | Stops most bad traffic at the edge location at CloudFront Functions cost. It does not verify the signature: CloudFront Functions have no RSA verify |
-| Regional WAF | A rule on the ALB's web ACL that requires the pattern's scope in `x-jwt-claims` | A resource-level check before the cluster does any work; a forged payload passes it and fails at the next layer |
+| Edge | The viewer-request CloudFront Function ([lib/viewer-request.js](../../lib/viewer-request.js)) decodes the token and answers `401` with `WWW-Authenticate: Bearer resource_metadata=...` for a missing, malformed, expired or foreign token. It sets `x-jwt-claims` to the decoded claims | Stops most bad traffic at the edge location at CloudFront Functions cost. It does not verify the signature: CloudFront Functions have no RSA verify |
+| Regional WAF | A rule on the ALB's web ACL that requires the pattern's scope in `x-jwt-claims` | A resource-level check before the cluster does any work. A forged claims header passes it and fails at the next layer |
 | Load balancer | ALB JWT verification (`jwt-validation` action) on an HTTPS listener, or an in-cluster gateway behind an NLB | The native check, central for every service behind the load balancer. It needs an HTTPS listener, so an HTTPS VPC origin and a certificate for your own domain. The `authenticate-oidc` action is a browser redirect flow and does not suit MCP clients |
-| MCP server | The SDK's bearer-auth middleware, a sidecar, or a check like [server/auth.js](../../server/auth.js) | Closest to the tools, can authorize per tool and per scope; every pod must be configured |
+| MCP server | The SDK's bearer-auth middleware, a sidecar, or a check like [server/auth.js](../../server/auth.js) | Closest to the tools, can authorize per tool and per scope. Every pod must be configured |
 
 Give the pattern its own scope (the sample uses `mcp/<pattern>`) so a token for another MCP server is
 refused. Serve `/.well-known/oauth-protected-resource/mcp` from the server, with `resource` set to
@@ -200,10 +200,10 @@ authorization server.
 | Setting | Value | Why |
 |---|---|---|
 | Cache policy for `/mcp` | `CachingDisabled` | Every MCP call is a unique `POST` |
-| Origin request policy | `AllViewerExceptHostHeader` | Forwards `Authorization`, `Mcp-Session-Id`, `Mcp-Protocol-Version` and `Accept`; the load balancer gets its own host name |
+| Origin request policy | `AllViewerExceptHostHeader` | Forwards `Authorization`, `Mcp-Session-Id`, `Mcp-Protocol-Version` and `Accept`. The load balancer gets its own host name |
 | Allowed methods | All (`GET`, `HEAD`, `OPTIONS`, `PUT`, `PATCH`, `POST`, `DELETE`) | Streamable HTTP uses `POST`, `GET` for the event stream and `DELETE` to end a session |
-| Origin protocol | HTTPS with a certificate on the load balancer, or HTTP inside the VPC | Traffic from a VPC origin stays on the AWS network; use HTTPS when policy requires encryption to the target |
-| Origin response timeout | 60 s or more | Tool calls that stream Server-Sent Events can go quiet between events; the timeout is the longest allowed silence between bytes |
+| Origin protocol | HTTPS with a certificate on the load balancer, or HTTP inside the VPC | Traffic from a VPC origin stays on the AWS network. Use HTTPS when policy requires encryption to the target |
+| Origin response timeout | 60 s or more | Tool calls that stream Server-Sent Events can go quiet between events. The timeout is the longest allowed silence between bytes |
 | ALB idle timeout | At least the CloudFront origin response timeout | Otherwise the ALB closes quiet streams first |
 | Server mode | Stateless Streamable HTTP | Any pod can answer any request, so the load balancer needs no sticky sessions. If the server keeps sessions (`Mcp-Session-Id`), store them outside the pod (for example Amazon ElastiCache), because MCP clients do not send ALB stickiness cookies reliably |
 | Readiness probe and health check | The same path, for example `/health` | The controller removes a pod from the target group before Kubernetes stops it, so a rollout drops no calls |
@@ -220,7 +220,7 @@ authorization server.
 
 - The most to operate: cluster upgrades, node capacity, the controller and add-ons.
 - Fixed cost while idle: EKS control plane, nodes or Fargate pods, and the load balancer.
-- The VPC origin and the load balancer usually belong to a different team and tool than the pods,
+- The VPC origin and the load balancer belong to a different team and tool than the pods,
   so the origin lock spans two code bases.
 
 See [docs/comparison.md](../../docs/comparison.md) for how this compares with the other patterns.

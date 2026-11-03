@@ -10,18 +10,18 @@ task, the ALB and four interface endpoints.
 
 ## Deployed resource details
 
-![Pattern 5: the edge (AWS WAF, the distribution, the CloudFront Function) and the Region (regional AWS WAF, internal ALB, Fargate task and VPC endpoints in isolated subnets; Amazon Cognito and the origin secret), numbered as below](../../docs/diagrams/pattern-5-alb/pattern-5-alb.svg)
+![Pattern 5: the edge (AWS WAF, the distribution, the CloudFront Function) and the Region (regional AWS WAF, internal ALB, Fargate task and VPC endpoints in isolated subnets, Amazon Cognito and the origin secret), numbered as below](../../docs/diagrams/pattern-5-alb/pattern-5-alb.svg)
 
 1. **AWS WAF at the edge** inspects the `POST /mcp` before anything else runs: IP reputation, rate limits per IP,
    per `initialize` and per tool, body size, protocol version, tool allowlist, and SSRF, SQL and XSS in tool arguments.
-2. **The CloudFront distribution** receives what the web ACL allowed. TLS has ended at the edge location; `/mcp` is not
+2. **The CloudFront distribution** receives what the web ACL allowed. TLS has ended at the edge location. `/mcp` is not
    cached, `/.well-known/*` is.
 3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge if it is missing, malformed,
    expired or from another issuer. For a good token it writes the decoded claims into `x-jwt-claims` and sends the
-   request on; it cannot verify the signature, so it never trusts the token on its own.
+   request on. It cannot verify the signature, so it never trusts the token on its own.
 4. **AWS WAF on the ALB** admits only requests carrying CloudFront's secret `x-origin-verify` header and an `mcp/` scope
    in `x-jwt-claims`, so nothing that skipped steps 1 to 3 reaches the ALB, even from inside the VPC.
-5. **The internal ALB** has private IPs only. CloudFront reaches it through a VPC origin; its security group admits the
+5. **The internal ALB** has private IPs only. CloudFront reaches it through a VPC origin. Its security group admits the
    CloudFront origin-facing prefix list and nothing else.
 6. **The Fargate task** runs the MCP server. It verifies the token's RS256 signature and the `mcp/alb` scope against the
    Cognito keys, then answers the `tools/call`.
@@ -30,7 +30,7 @@ task, the ALB and four interface endpoints.
 8. **Amazon Cognito** issues the tokens (client credentials, one scope per pattern) and publishes the keys that step 6
    verifies against.
 9. **Secrets Manager** holds the random `x-origin-verify` value. At deploy the stack reads it into the distribution's
-   origin header (2) and the regional web ACL's rule (4); it is never sent to clients.
+   origin header (2) and the regional web ACL's rule (4). It is never sent to clients.
 
 ### The edge
 
@@ -64,20 +64,20 @@ order, before the Region sees anything.
   `WWW-Authenticate: Bearer resource_metadata="https://<distribution>/.well-known/oauth-protected-resource/mcp"` for a
   token that is missing, malformed, expired, from another issuer or not an access token, without calling the origin.
 - Does not check the signature: CloudFront Functions offer HMAC but no RSA verify. That check is the task's (6).
-- Replaces any client-sent `x-jwt-claims` header with the decoded payload, so the regional web ACL (4) can match on the scope, and sets
+- Replaces any client-sent `x-jwt-claims` header with the decoded claims, so the regional web ACL (4) can match on the scope, and sets
   `x-forwarded-host` so the server can name the distribution in its metadata.
 
 ### The Region (us-east-1)
 
 The Region holds the VPC with the origin, plus the Cognito issuer and the origin secret. 4 to 7 are in the VPC's
-isolated subnets; 8 and 9 are regional services reached over AWS PrivateLink or at deploy time.
+isolated subnets. 8 and 9 are regional services reached over AWS PrivateLink or at deploy time.
 
 #### 4. AWS WAF web ACL `OriginWaf`
 
 **Why a second web ACL when the edge already has one.** The security group (5) admits CloudFront's IP ranges, and the
 VPC origin can be used only by distributions in this account. Neither proves that a request went through *this*
 distribution: another distribution in the account without the edge web ACL and the CloudFront Function, or any process
-inside the VPC, could reach the ALB directly and skip every rule in (1) and the token pre-filter in (3). `OriginWaf`
+inside the VPC, can reach the ALB directly and skip every rule in (1) and the token pre-filter in (3). `OriginWaf`
 closes that gap by requiring two things only that path produces: the secret `x-origin-verify` header that the
 distribution (2) adds, and an `x-jwt-claims` header with an `mcp/` scope that the function (3) sets. It also gives you
 WAF logs and metrics on the origin side, so you can see what reached the ALB and compare it with what the edge saw.
@@ -91,7 +91,7 @@ with less capability and no extra charge.
   them.
 - An ALB inspects only the first 8 KB of a body and this web ACL has no size preflight, so its argument rules use
   `OversizeHandling: MATCH` and block a body they cannot fully see. The edge web ACL (1) inspects 32 KB, so a legitimate body
-  between 8 and 32 KB is blocked here; raise the argument sizes your tools accept with that in mind, or inspect
+  between 8 and 32 KB is blocked here. Raise the argument sizes your tools accept with that in mind, or inspect
   arguments at the edge only.
 - Blocks are plain 403s, not the JSON-RPC error the edge returns: a client that came through CloudFront never sees them.
 
@@ -122,7 +122,7 @@ with less capability and no extra charge.
   gateway endpoint, writes to Amazon CloudWatch Logs through an interface endpoint, and fetches the JWKS through a
   `cognito-idp` interface endpoint.
 - The `cognito-idp` endpoint is not offered in every Availability Zone, so [lib/vpc.ts](../../lib/vpc.ts) pins the VPC
-  to AZs that have it. AZ names map to different physical AZs in each account; check yours before you deploy.
+  to AZs that have it. AZ names map to different physical AZs in each account. Check yours before you deploy.
 - The VPC (`10.1.0.0/16`) is shared with pattern 2, whose internal NLB and `execute-api` endpoint sit in the same
   isolated subnets. CloudFront VPC origins require an internet gateway on the VPC, so it also has public subnets with
   nothing in them.
@@ -131,7 +131,7 @@ with less capability and no extra charge.
 
 - The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)): a resource server `mcp` with one scope per pattern
   and one app client using the client credentials grant. This pattern's scope is `mcp/alb`.
-- The stack outputs `TokenUrl`, `UserPoolId` and `ClientId`; the [root README](../../README.md#deploy) shows how to
+- The stack outputs `TokenUrl`, `UserPoolId` and `ClientId`. The [root README](../../README.md#deploy) shows how to
   get a token. See [Authentication](../../README.md#authentication) for why scopes stand in for an audience.
 
 #### 9. AWS Secrets Manager secret

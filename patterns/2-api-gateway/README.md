@@ -3,7 +3,7 @@
 Its own CloudFront distribution (`/mcp`) → CloudFront VPC origin → internal Network Load Balancer → `execute-api` VPC
 endpoint → private API Gateway REST API → AWS Lambda running the hello image with Lambda Web Adapter.
 
-A private API made reachable from the internet without exposing it. The REST API has no public endpoint; CloudFront
+A private API made reachable from the internet without exposing it. The REST API has no public endpoint. CloudFront
 reaches it through a VPC origin, an internal NLB and an interface VPC endpoint, with TLS end to end. A Cognito
 authorizer on every method verifies the token, so Lambda never runs for a bad one. The private path adds fixed cost (NLB
 and endpoint in two Availability Zones), and the REST API's 29-second timeout rules out long SSE streams.
@@ -18,7 +18,7 @@ and endpoint in two Availability Zones), and the REST API's 29-second timeout ru
 2. **The CloudFront distribution** receives what the web ACL allowed and sends it through the VPC origin over HTTPS,
    with the secret `x-origin-verify` header added. `/mcp` is not cached.
 3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge for a missing, malformed, expired
-   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`; it cannot verify the signature.
+   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`. It cannot verify the signature.
 4. **The internal NLB** has private IPs only and passes TCP 443 straight through, so the TLS session runs from
    CloudFront to the endpoint without being terminated in between.
 5. **The `execute-api` VPC endpoint** is the only way into the API: the API's resource policy allows invocation only
@@ -29,7 +29,7 @@ and endpoint in two Availability Zones), and the REST API's 29-second timeout ru
    takes no web ACL, so the stage is where the regional check lives.
 8. **AWS Lambda** runs the hello image through Lambda Web Adapter and answers the `tools/call`.
 9. **Amazon Cognito** issues the tokens and publishes the keys the authorizer (6) verifies against.
-10. **Secrets Manager** holds the random `x-origin-verify` value; at deploy the stack reads it into the distribution's
+10. **Secrets Manager** holds the random `x-origin-verify` value. At deploy the stack reads it into the distribution's
     origin header (2) and the regional web ACL's rule (7).
 
 ### The edge
@@ -48,7 +48,7 @@ before the Region sees anything.
 - Origin: a [VPC origin](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-vpc-origins.html)
   to the internal NLB (4) over HTTPS. The origin domain is the API's own hostname,
   `<api-id>.execute-api.<region>.amazonaws.com`: CloudFront validates the endpoint's `*.execute-api` certificate against
-  it, and the Host header routes the request to this API. The hostname has no public DNS; CloudFront reaches it only
+  it, and the Host header routes the request to this API. The hostname has no public DNS. CloudFront reaches it only
   through the VPC origin.
 - Adds the secret `x-origin-verify` header (10) to every origin request.
 - What CloudFront adds here: a public entry point to an API that is otherwise reachable only from inside the VPC, the
@@ -58,13 +58,13 @@ before the Region sees anything.
 #### 3. CloudFront Function (viewer request)
 
 - [lib/viewer-request.js](../../lib/viewer-request.js). Decodes the token and answers `401` with
-  `WWW-Authenticate: Bearer resource_metadata=...` for a missing, malformed, expired or foreign token; sets
+  `WWW-Authenticate: Bearer resource_metadata=...` for a missing, malformed, expired or foreign token. Sets
   `x-jwt-claims` for the regional web ACL (7) and `x-forwarded-host` so the server can name the distribution in its
   metadata.
 
 ### The Region (us-east-1)
 
-4 and 5 are in the VPC's isolated subnets (`10.1.0.0/16`, shared with pattern 5, no NAT gateway); 6 to 10 are regional
+4 and 5 are in the VPC's isolated subnets (`10.1.0.0/16`, shared with pattern 5, no NAT gateway). 6 to 10 are regional
 services.
 
 #### 4. Internal Network Load Balancer
@@ -75,9 +75,9 @@ services.
 - TCP 443 passthrough to the endpoint's network interface IPs, so TLS runs end to end between CloudFront and the
   endpoint. An NLB rather than an ALB: passthrough needs no certificate or HTTP listener of its own, but the NLB cannot
   take a web ACL or inspect requests, so all regional WAF checks sit on the stage (7).
-- The NLB targets the endpoint's IPs, which CloudFormation does not expose; a small inline Lambda function
+- The NLB targets the endpoint's IPs, which CloudFormation does not expose. A small inline Lambda function
   (`endpoint-ips.js`, `nodejs24.x`) looks them up once as a custom resource. They stay fixed for the endpoint's
-  lifetime; if you recreate the endpoint, redeploy.
+  lifetime. If you recreate the endpoint, redeploy.
 
 #### 5. `execute-api` interface VPC endpoint
 
@@ -96,7 +96,7 @@ services.
 
 #### 7. AWS WAF web ACL `OriginWaf`
 
-- Regional, on the API stage, shared with the AgentCore Gateway (pattern 1) and the ALB (pattern 5). Default block;
+- Regional, on the API stage, shared with the AgentCore Gateway (pattern 1) and the ALB (pattern 5). Default block. It
   allows only requests with CloudFront's secret `x-origin-verify` header and an `mcp/` scope in `x-jwt-claims`, and
   repeats the tool labels and the four argument rules ahead of that allow.
 - Why it exists alongside the network lock: the security groups and the resource policy prove the request came from
@@ -105,15 +105,15 @@ services.
 
 #### 8. AWS Lambda
 
-- Runs the same arm64 hello image as the other patterns, through Lambda Web Adapter; no Lambda-specific code. Cold
+- Runs the same arm64 hello image as the other patterns, through Lambda Web Adapter. No Lambda-specific code. Cold
   starts are slower than a zip handler.
 - REST APIs time out at 29 seconds by default and buffer responses, so the server answers with JSON rather than a
   long-lived SSE stream.
 
 #### 9. Amazon Cognito user pool
 
-- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)); this pattern's scope is `mcp/api-gateway`. The stack
-  outputs `TokenUrl`, `UserPoolId` and `ClientId`; the [root README](../../README.md#deploy) shows how to get a token.
+- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)). This pattern's scope is `mcp/api-gateway`. The stack
+  outputs `TokenUrl`, `UserPoolId` and `ClientId`. The [root README](../../README.md#deploy) shows how to get a token.
 
 #### 10. AWS Secrets Manager secret
 

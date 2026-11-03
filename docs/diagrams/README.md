@@ -17,7 +17,7 @@ The pattern diagrams follow the style of the [AWS Security Reference Architectur
 official AWS Architecture Icons from draw.io's AWS4 library, AWS Cloud, Region, VPC and subnet boundaries in their
 standard colors, and a black number on every resource that matches a numbered line and a heading in the pattern's
 README, which is the legend. The request flow is drawn as labeled arrows. The overview and the authorization flow use
-category-tinted containers with a legend inside the image. `drawio.mjs` encodes both; `build.mjs` defines each diagram
+category-tinted containers with a legend inside the image. `drawio.mjs` encodes both. `build.mjs` defines each diagram
 against it.
 
 To change a diagram, edit its definition in `build.mjs` (or edit the `.drawio` directly in draw.io for a one-off), then
@@ -28,7 +28,7 @@ node docs/diagrams/build.mjs      # writes every <name>.drawio
 node docs/diagrams/export.mjs     # <name>.png and <name>.svg; needs Docker (headless draw.io in a container)
 ```
 
-`export.mjs` accepts diagram names to export a subset. The exports are rendered locally; nothing leaves the machine.
+`export.mjs` accepts diagram names to export a subset. The exports are rendered locally. Nothing leaves the machine.
 
 `assets/mcp.svg` is the Model Context Protocol mark, copied from
 [modelcontextprotocol/modelcontextprotocol](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/docs/favicon.svg)
