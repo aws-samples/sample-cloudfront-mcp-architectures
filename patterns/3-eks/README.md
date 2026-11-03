@@ -15,22 +15,24 @@ The recommended design keeps the origin private and puts AWS WAF at two layers:
 - a **regional web ACL on the internal ALB**, which checks what reaches the VPC: the secret origin
   header, tighter per-path rate limits and rules that only make sense near the app.
 
-```mermaid
-flowchart LR
-  C["MCP client"] -->|"HTTPS /mcp + Bearer token"| CF
-  subgraph edge["Amazon CloudFront"]
-    CF["Distribution for this pattern<br/>edge AWS WAF: MCP rules"] --> FN["CloudFront Function<br/>decodes the JWT:<br/>401 if missing, expired or foreign,<br/>sets x-jwt-claims"]
-  end
-  FN -- "VPC origin (private IPs only)<br/>x-origin-verify + x-jwt-claims" --> LB["Internal ALB<br/>regional AWS WAF: secret header and scope<br/>private subnets"]
-  subgraph EKS["EKS cluster"]
-    LBC["AWS Load Balancer Controller"]
-    P1["MCP server pod<br/>verifies the token"]
-    P2["MCP server pod<br/>verifies the token"]
-  end
-  LB -- "target type ip" --> P1 & P2
-  LBC -. "registers pod IPs" .-> LB
-  P1 & P2 -.->|JWKS| COG[("Amazon Cognito<br/>or your identity provider")]
-```
+![Pattern 3: the edge (AWS WAF, the distribution, the CloudFront Function) and your Region (regional AWS WAF on an internal ALB, MCP server pods on Amazon EKS registered by the AWS Load Balancer Controller, and your identity provider), numbered as below](../../docs/diagrams/pattern-3-eks/pattern-3-eks.svg)
+
+1. **AWS WAF at the edge** inspects the `POST /mcp` before anything else runs: the shared MCP rule stack, so floods and
+   malformed requests never use cluster capacity.
+2. **The CloudFront distribution** for this pattern receives what the web ACL allowed and sends it through a VPC origin
+   with the secret `x-origin-verify` header added. `/mcp` is not cached, `/.well-known/*` is.
+3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge for a missing, malformed, expired
+   or foreign token. For a good token it writes the decoded claims into `x-jwt-claims`; it cannot verify the signature.
+4. **AWS WAF on the ALB** admits only requests with the secret header and the pattern's scope in `x-jwt-claims`, so
+   nothing that skipped steps 1 to 3 reaches the cluster, even from inside the VPC.
+5. **The internal ALB** has private IPs only, in private subnets. CloudFront reaches it through the VPC origin; its
+   security group admits the CloudFront origin-facing prefix list and nothing else.
+6. **The MCP server pods** are the ALB's targets (target type `ip`). They verify the token's signature and scope with
+   the SDK's bearer-auth middleware, a sidecar or a check like `server/auth.js`, then answer the `tools/call`.
+7. **The AWS Load Balancer Controller** registers pod IPs in the target group, through a `TargetGroupBinding` to a load
+   balancer your IaC created (recommended) or an `Ingress` that creates one.
+8. **Your identity provider** (Amazon Cognito in the other patterns) issues the tokens and publishes the keys the pods
+   verify against.
 
 ## What CloudFront adds in front of EKS
 

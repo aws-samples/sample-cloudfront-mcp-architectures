@@ -1,66 +1,110 @@
 # Pattern 1: Amazon Bedrock AgentCore
 
-Its own CloudFront distribution (`/mcp`, stack output `AgentCoreMcp`) → Amazon Bedrock AgentCore Gateway → AgentCore Runtime running the hello image.
+Its own CloudFront distribution (`/mcp`, stack output `AgentCoreMcp`) → Amazon Bedrock AgentCore Gateway → AgentCore
+Runtime running the hello image.
 
-![Pattern 1: CloudFront, regional AWS WAF on the AgentCore Gateway, Gateway JWT authorizer, AgentCore Runtime](../../docs/diagrams/pattern-1-agentcore/pattern-1-agentcore.svg)
+The managed path: nothing to run and no VPC. The Gateway is a public endpoint, so a regional AWS WAF web ACL on it
+accepts only requests carrying CloudFront's secret header; the Gateway's own JWT authorizer verifies the token before
+any target is called, and the Runtime accepts only the Gateway's role. The first call after idle sees a cold start, and
+tool names arrive as `<target>___<tool>`.
 
-## How it works
+## Deployed resource details
 
-- AgentCore Runtime runs the shared arm64 hello image with the MCP protocol: the Runtime serves the container's
-  `POST :8000/mcp`. Its inbound authorizer is IAM, so only SigV4-signed callers with `bedrock-agentcore:InvokeAgentRuntime`
-  can reach it.
-- AgentCore Gateway has one MCP server target, `hello`, whose endpoint is the Runtime's invocation URL. The Gateway signs
-  calls to the Runtime with its own service role (outbound IAM auth, service `bedrock-agentcore`), and that role is the
-  only principal allowed to invoke the Runtime.
-- The Gateway prefixes every tool with its target name, so clients call `hello___hello`, not `hello`. The
-  CloudFront web ACL's tool allowlist accepts both forms.
+![Pattern 1: the edge (AWS WAF, the distribution, the CloudFront Function) and the Region (regional AWS WAF on the AgentCore Gateway, the Gateway, the Runtime, Amazon Cognito and the origin secret), numbered as below](../../docs/diagrams/pattern-1-agentcore/pattern-1-agentcore.svg)
+
+1. **AWS WAF at the edge** inspects the `POST /mcp` before anything else runs: IP reputation, rate limits, body size,
+   protocol version, tool allowlist (which accepts `hello___hello`, the Gateway's name for the tool), and SSRF, SQL and
+   XSS in tool arguments.
+2. **The CloudFront distribution** receives what the web ACL allowed and forwards to the Gateway's public hostname with
+   the secret `x-origin-verify` header added. `/mcp` is not cached.
+3. **The CloudFront Function** decodes the Bearer token and answers `401` at the edge for a missing, malformed, expired
+   or foreign token. It also answers the protected-resource metadata itself, because the Gateway's own document names
+   the Gateway's hostname rather than the distribution's.
+4. **AWS WAF on the Gateway** admits only requests with the secret header and an `mcp/` scope in `x-jwt-claims`, so a
+   call straight to the public Gateway endpoint is refused before the Gateway does any work.
+5. **The AgentCore Gateway** verifies the token's signature and the `mcp/agentcore` scope with its Cognito JWT
+   authorizer, then calls its one target, `hello`.
+6. **The AgentCore Runtime** runs the hello image and serves the MCP protocol. Its inbound authorizer is IAM: only the
+   Gateway's role, signing with SigV4, can invoke it.
+7. **Amazon Cognito** issues the tokens and publishes the discovery document and keys the Gateway (5) verifies against.
+8. **Secrets Manager** holds the random `x-origin-verify` value; at deploy the stack reads it into the distribution's
+   origin header (2) and the regional web ACL's rule (4).
+
+### The edge
+
+Global. Every request enters the edge location nearest the client, where TLS ends and where 1 to 3 run, in that order,
+before the Region sees anything.
+
+#### 1. AWS WAF web ACL `EdgeWaf`
+
+- CloudFront scope, shared by every pattern distribution in the stack ([lib/waf.ts](../../lib/waf.ts)). The MCP rule
+  stack is documented once, in the [root README](../../README.md#aws-waf-at-the-edge).
+- The tool allowlist accepts `hello` and `hello___hello`: the Gateway prefixes every tool with its target name.
 - The Gateway accepts MCP protocol versions `2025-06-18` and `2025-11-25`, the ones the edge web ACL lets through. Its
   default is `2025-03-26` only, which the edge would reject.
-- CloudFront's origin is the Gateway's own hostname, `<gateway-id>.gateway.bedrock-agentcore.<region>.amazonaws.com`.
-  The distribution's default behavior forwards the path as is, so the Gateway receives `/mcp`.
 
-## How the origin is locked down
+#### 2. Amazon CloudFront distribution
 
-The Gateway endpoint is public. CloudFront adds the secret header `x-origin-verify` to every origin request, and a
-regional AWS WAF web ACL associated with the Gateway allows only requests that carry the exact value (default action:
-block). A call straight to the Gateway is answered by the Gateway itself with HTTP 403 and the JSON-RPC error `-32002`
-(`Forbidden - Request blocked by AWS WAF`) and never reaches the Runtime. The Gateway's WAF failure mode is left at its
-default, `FAIL_CLOSE`.
+- Origin: the Gateway's own hostname, `<gateway-id>.gateway.bedrock-agentcore.<region>.amazonaws.com`, over HTTPS. The
+  default behavior forwards the path as is, so the Gateway receives `/mcp`.
+- `ALL_VIEWER_EXCEPT_HOST_HEADER` forwards the viewer's `Authorization` header to the Gateway's authorizer (5).
+- Adds the secret `x-origin-verify` header (8) to every origin request.
+- What CloudFront adds here: a custom domain and the edge web ACL in front of a managed endpoint that has neither, TLS
+  termination and connection reuse from edge locations close to the client, and one front door for a Gateway that
+  serves one Region.
 
-The Runtime has no lock of its own to CloudFront because CloudFront never calls it: it accepts only the Gateway's role.
+#### 3. CloudFront Function (viewer request)
 
-### Why not a private origin
+- [lib/viewer-request.js](../../lib/viewer-request.js) with `METADATA_SCOPE` set to `mcp/agentcore`. Decodes the token
+  and answers `401` with `WWW-Authenticate: Bearer resource_metadata=...` without calling the Gateway; sets
+  `x-jwt-claims` for the regional web ACL (4).
+- Answers `GET /.well-known/oauth-protected-resource/mcp` at the edge (`x-cache: FunctionGeneratedResponse`), with
+  `resource` set to `https://<distribution>/mcp`, the Cognito issuer and the scope. The Gateway publishes its own
+  document, but with its own hostname as `resource`, and an MCP client must refuse a document whose `resource` differs
+  from the URL it called. The Gateway never sees discovery traffic.
 
-A stricter lock is possible but is not built here. The Gateway has an AWS PrivateLink interface endpoint, and a
-Gateway resource-based policy can deny requests whose `aws:SourceVpce` is not that endpoint, which closes the public
-endpoint. CloudFront cannot use that endpoint directly, though: VPC origins reach only an ALB, an NLB or an EC2
-instance. You would need a load balancer in front of the endpoint's network interfaces and a TLS setup where the name
-CloudFront checks matches the certificate the origin presents. That is more infrastructure than the other patterns and
-was not tested in this sample.
+### The Region (us-east-1)
 
-## Where authentication sits
+#### 4. AWS WAF web ACL `OriginWaf`
 
-In the Gateway. Its inbound authorizer is `GatewayAuthorizer.usingCognito`: it checks each access token's signature
-against the user pool's discovery URL, and allows only the stack's app client and the scope `mcp/agentcore`. CloudFront
-forwards the viewer's `Authorization` header (`ALL_VIEWER_EXCEPT_HOST_HEADER`). In front of it, the CloudFront Function
-answers `401` for a missing, expired or foreign token without calling the Gateway, and the regional WAF requires the
-scope in the decoded claims. See [Authentication](../../README.md#authentication).
+- Regional, associated with the Gateway, shared with the REST API stage (pattern 2) and the ALB (pattern 5). Default
+  block; allows only requests with the exact `x-origin-verify` value and an `mcp/` scope in `x-jwt-claims`.
+- This is the origin lock. The Gateway endpoint is public and takes no security group or resource policy that could
+  name CloudFront, so the shared secret checked here is what keeps direct callers out. A call straight to the Gateway
+  gets HTTP 403 with the JSON-RPC error `-32002` (`Forbidden - Request blocked by AWS WAF`) and never reaches the
+  Runtime. The Gateway's WAF failure mode is left at its default, `FAIL_CLOSE`.
+- A stricter, private lock is possible but not built: the Gateway has an AWS PrivateLink interface endpoint, and a
+  Gateway resource-based policy can deny requests whose `aws:SourceVpce` is not that endpoint. CloudFront cannot use
+  that endpoint directly (VPC origins reach only an ALB, an NLB or an EC2 instance), so it would need a load balancer in
+  front of the endpoint's network interfaces and a TLS setup where the name CloudFront checks matches the certificate the
+  origin presents.
 
-The Gateway publishes its own protected-resource metadata, but names its own hostname as `resource`, not the
-distribution's `/mcp` that clients call, and an MCP client must refuse a document whose `resource` differs from the URL
-it called. So this distribution's CloudFront Function answers `/.well-known/oauth-protected-resource/mcp` itself, with
-`resource` set to `https://<distribution>/mcp`, the Cognito issuer and the scope `mcp/agentcore`. The answer comes from
-the edge location (`x-cache: FunctionGeneratedResponse`), so the Gateway never sees discovery traffic.
+#### 5. AgentCore Gateway
 
-## Rate limiting
+- One MCP server target, `hello`, whose endpoint is the Runtime's invocation URL. The Gateway signs calls to the
+  Runtime with its own service role (outbound IAM auth, service `bedrock-agentcore`).
+- Inbound authorizer `GatewayAuthorizer.usingCognito`: checks each access token's signature against the user pool's
+  discovery URL and allows only the stack's app client and the scope `mcp/agentcore`. See
+  [Authentication](../../README.md#authentication).
+- Rate limiting: the edge rate rules, plus any rate rule you add to the regional web ACL (4).
 
-CloudFront-scope AWS WAF rate rules at the edge, plus any rate rule you add to the regional web ACL on the Gateway.
+#### 6. AgentCore Runtime
 
-## What CloudFront adds
+- Runs the shared arm64 hello image with the MCP protocol; the Runtime serves the container's `POST :8000/mcp`.
+- Inbound authorizer IAM: only SigV4-signed callers with `bedrock-agentcore:InvokeAgentRuntime` can reach it, and the
+  Gateway's role is the only principal allowed. The Runtime has no lock of its own to CloudFront because CloudFront never
+  calls it.
+- Starts a session on demand, so the first call after idle sees a cold start.
 
-- A custom domain and the edge web ACL (MCP protocol version, body size, tool allowlist, per-IP rate limit) in front of
-  a managed endpoint that has neither.
-- TLS termination and connection reuse to the regional Gateway from edge locations close to the client.
+#### 7. Amazon Cognito user pool
+
+- The one issuer for the stack ([lib/auth.ts](../../lib/auth.ts)); this pattern's scope is `mcp/agentcore`. The stack
+  outputs `TokenUrl`, `UserPoolId` and `ClientId`; the [root README](../../README.md#deploy) shows how to get a token.
+
+#### 8. AWS Secrets Manager secret
+
+- A 32-character random value generated at deploy, read into the origin header (2) and the `OriginWaf` rule (4). Rotate
+  it by updating the secret and redeploying.
 
 ## Deploy with CloudFormation
 
