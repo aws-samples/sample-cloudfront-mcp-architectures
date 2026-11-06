@@ -155,37 +155,26 @@ write('pattern-mcp-web-function-cloudfront', diagram({
 }));
 
 // ---------------------------------------------------------------------------------------------------------------------
-// MCP authorization flow. Steps in time order, numbered on the arrows; the legend is the README's Authentication section.
+// MCP authorization flow: four parties, six numbered arrows, short labels. The README's Authentication section is the legend.
 write('mcp-auth-flow', diagram({
   name: 'mcp-auth-flow',
   titleBlock: false,
-  width: W, height: H + 100,
+  width: 1200, height: 620,
   build(d) {
-    const client = d.icon({ key: 'client', label: 'MCP client', sub: 'agent', image: MCP_ICON, x: 40, y: R1 });
-    d.group('awsCloud', 'AWS Cloud', { x: 170, y: 40, w: W - 200, h: H + 30 });
-    d.group('edge', 'Amazon CloudFront edge (global)', { x: 200, y: 90, w: 420, h: H - 50 });
-    const waf = d.icon({ key: 'waf', cat: 'security', label: 'AWS WAF', sub: 'EdgeWaf', shape: 'waf', x: 250, y: R1 });
-    const cf = d.icon({ key: 'cf', cat: 'networking', label: 'Amazon CloudFront', sub: 'the distribution', shape: 'cloudfront', x: 450, y: R1 });
-    const fn = d.icon({ key: 'cff', cat: 'networking', label: 'CloudFront Function', sub: 'decodes,<br>does not verify', shape: 'cloudfront_functions', resource: true, x: 450, y: R2 });
-    d.group('region', 'us-east-1', { x: 650, y: 90, w: W - 200 + 170 - 650 - 30, h: H - 50 });
-    const origin = d.icon({ key: 'origin', cat: 'compute', label: 'MCP server (the origin)', sub: 'verifies signature<br>and scope', shape: 'servers', resource: true, x: 860, y: R1 });
-    const cog = d.icon({ key: 'cognito', cat: 'security', label: 'Amazon Cognito', sub: 'authorization server', shape: 'cognito', x: 1360, y: R1 });
-    // 1: no token, 401 from the edge
-    d.edge(client, waf, { label: 'POST /mcp', dy: -14 });
-    d.num(1, 160, R1 + 44);
-    d.edge(waf, cf, { label: 'allowed', dy: -14 });
-    d.edge(cf, fn, { exit: [0.5, 1], entry: [0.5, 0], both: true, elbow: 'vertical' });
-    d.edge(fn, client, { exit: [0, 0.5], entry: [0.5, 1], elbow: 'horizontal', color: '#999999', dashed: true, label: '401, WWW-Authenticate: Bearer resource_metadata=<br>"https://&lt;distribution&gt;/.well-known/oauth-protected-resource/mcp"', at: 0.45, dy: 30, points: [[cx(40), R2 + 32]] });
-    // 2: discovery, served by the origin and cached by CloudFront
-    d.edge(cf, origin, { label: 'GET /.well-known/oauth-protected-resource/mcp (cached)', dy: -40 });
-    d.num(2, 496, R1 - 46);
-    // 3 and 4: the issuer's metadata, then a token, straight from the client to Cognito
-    d.edge(client, cog, { exit: [0.5, 1], entry: [0.5, 1], elbow: 'vertical', label: 'GET /.well-known/openid-configuration, then POST /oauth2/token (client credentials, scope=mcp/&lt;pattern&gt;) \u2192 access token', at: 0, dy: 14, points: [[cx(40), 740], [cx(1360), 740]] });
-    d.num(3, 92, 698); d.num(4, 128, 698);
-    // 5: the authorized call through the edge, 6: verified at the origin
-    d.edge(cf, origin, { label: 'POST /mcp, Bearer token<br>x-jwt-claims, x-forwarded-host', dy: 34 });
-    d.num(5, 528, R1 + 66);
-    d.edge(origin, cog, { label: 'JWKS', dy: -14 });
-    d.num(6, 1090, R1 - 44);
+    const Y = 200;
+    const client = d.icon({ key: 'client', label: 'MCP client', sub: 'agent', image: MCP_ICON, x: 60, y: Y });
+    d.group('awsCloud', 'AWS Cloud', { x: 240, y: 110, w: 920, h: 470 });
+    const edge = d.icon({ key: 'edge', cat: 'networking', label: 'CloudFront edge', sub: 'AWS WAF, then the function:<br>decodes the token', shape: 'cloudfront', x: 460, y: Y });
+    const origin = d.icon({ key: 'origin', cat: 'compute', label: 'MCP server', sub: 'verifies signature<br>and scope', shape: 'servers', resource: true, x: 800, y: Y });
+    const cog = d.icon({ key: 'cognito', cat: 'security', label: 'Amazon Cognito', sub: 'issues the token', shape: 'cognito', x: 800, y: Y + 240 });
+    // 1 no token -> 401 with the metadata URL
+    d.edge(client, edge, { exit: [1, 0.3], entry: [0, 0.3], both: true, label: '<b>1</b>  POST /mcp, no token \u2192 401', dy: -16 });
+    // 2 discovery, cached at the edge
+    d.edge(client, edge, { exit: [1, 0.7], entry: [0, 0.7], both: true, label: '<b>2</b>  GET the metadata (cached)', dy: 18 });
+    // 3, 4 token from Cognito
+    d.edge(client, cog, { exit: [0.5, 1], entry: [0, 0.5], elbow: 'vertical', both: true, label: '<b>3</b>  issuer metadata, then <b>4</b>  POST /oauth2/token \u2192 access token', at: 0.3, dy: 18 });
+    // 5 the call with the token, pre-filtered at the edge, 6 verified at the origin
+    d.edge(edge, origin, { label: '<b>5</b>  POST /mcp with the token', dy: -16 });
+    d.edge(origin, cog, { exit: [0.5, 1], entry: [0.5, 0], elbow: 'vertical', label: '<b>6</b>  fetches the keys (JWKS)', at: 0, dx: 110 });
   },
 }));

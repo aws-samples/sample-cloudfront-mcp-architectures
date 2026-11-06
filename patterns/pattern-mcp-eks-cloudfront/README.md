@@ -5,8 +5,8 @@ sends requests to MCP server pods on an Amazon EKS Auto Mode cluster. The pods r
 gateway.
 
 This is the shape for teams that run containers on Kubernetes, and it has no public origin to protect. The ALB has only
-private IP addresses. Its security group admits only CloudFront's origin-facing addresses, and it carries the regional
-web ACL, so a workload inside the VPC can't skip the edge rules either. EKS Auto Mode provisions the nodes and runs the
+private IP addresses. Its security group admits only CloudFront's origin-facing addresses, and it carries a regional
+web ACL that reads CloudFront's secret header. EKS Auto Mode provisions the nodes and runs the
 load balancer controller, so the stack installs no add-ons. The cluster, its nodes, the ALB, and the NAT gateway cost
 money while idle. Deployment takes about 20 minutes.
 
@@ -24,11 +24,8 @@ The following diagram shows the resources that the stack creates, numbered as in
    or foreign token. For a good token it sets `x-jwt-claims` for the regional web ACL (4) and `x-forwarded-host` for
    the server's metadata.
 4. **AWS WAF on the ALB** (`OriginWaf`) admits only requests with the secret header and an `mcp/` scope in
-   `x-jwt-claims`. The security group proves that a request came from CloudFront. This web ACL proves that it came
-   through this distribution and its edge rules, and it catches anything inside the VPC that calls the ALB directly. An
-   ALB inspects only the first 8 KB of a body, and this web ACL has no size preflight, so its argument rules block a
-   body that they can't fully see. If the network lock is enough for you, an ALB listener rule that checks the header
-   does the same job at no extra charge.
+   `x-jwt-claims`, and screens tool arguments again. This layer is optional. See
+   [Why a second web ACL here](#why-a-second-web-acl-here).
 5. **The internal ALB** has private IP addresses only. Its security group admits port 80 only from the CloudFront
    managed prefix list `com.amazonaws.global.cloudfront.origin-facing`. The cluster security group admits port 8000
    only from the ALB. The stack creates the ALB, its listener, and a target group of type `ip`, so the VPC origin
@@ -47,6 +44,21 @@ The following diagram shows the resources that the stack creates, numbered as in
 8. **Amazon Cognito** issues the tokens and publishes the keys the pods verify against.
 9. **Secrets Manager** holds the random `x-origin-verify` value. At deploy time, the stack reads it into the origin
    header (2) and the `OriginWaf` rule (4). To rotate it, update the secret and deploy again.
+
+## Why a second web ACL here
+
+The network already controls who reaches the pods. The ALB is internal, so it has private IP addresses and no route
+from the internet. Its security group admits only CloudFront's origin-facing prefix list, and the cluster security
+group admits only the ALB.
+
+The regional web ACL adds one thing on top. It is what reads the secret header that CloudFront adds, so the origin can
+tell a request that came through this distribution, with its edge rules and its token pre-filter, from one that came
+through another distribution in the same account. The pods verify the token either way.
+
+Two things to weigh if you copy this pattern. AWS WAF inspects only the first 8 KB of a body on an ALB, and this web
+ACL has no size preflight, so its argument rules block a body they can't fully see. An ALB listener rule that matches
+the header, with a default action of 403, makes the same check at no extra charge. You can leave this layer out and
+rely on the network alone. It is here as a reference for where an origin-side check goes.
 
 ## Deploy
 

@@ -38,10 +38,8 @@ The following diagram shows the resources that the stack creates, numbered as in
    `GET /.well-known/oauth-protected-resource/mcp` has no authorizer. You can add stage and usage-plan throttling for each API key
    here.
 7. **AWS WAF on the stage** (`OriginWaf`) admits only requests with the secret header and an `mcp/` scope in
-   `x-jwt-claims`. The security groups and the resource policy prove that a request came from CloudFront through this
-   endpoint. They don't prove that it came through this distribution and its edge rules. This web ACL does, and a
-   workload inside the VPC that calls the NLB directly meets it too. An NLB can't take a web ACL, so the stage is where
-   it lives.
+   `x-jwt-claims`, and screens tool arguments again. An NLB can't take a web ACL, so the stage is where it lives. This
+   layer is optional. See [Why a second web ACL here](#why-a-second-web-acl-here).
 8. **AWS Lambda** runs the same arm64 hello image as the other patterns, through Lambda Web Adapter, and answers the
    `tools/call`. REST APIs time out at 29 seconds and buffer responses, so the server answers with JSON rather than a
    long-lived SSE stream. A container image starts more slowly than a zip handler.
@@ -51,6 +49,23 @@ The following diagram shows the resources that the stack creates, numbered as in
 
 The VPC (`10.1.0.0/16`, two Availability Zones) has isolated subnets and no NAT gateway, because nothing in it needs
 egress.
+
+## Why a second web ACL here
+
+The network already controls who reaches the API. The NLB is internal, so it has private IP addresses and no route from
+the internet. Its security group admits only CloudFront's origin-facing prefix list, the endpoint's security group
+admits only the NLB, and the API's resource policy admits only this VPC endpoint. An NLB passes TCP through and
+inspects nothing, so those three controls are the lock.
+
+The regional web ACL adds one thing on top. It is what can read the secret header that CloudFront adds, so the origin
+can tell a request that came through this distribution, with its edge rules and its token pre-filter, from one that
+came through another distribution in the same account. A REST API can't match on a header by itself, which is why the
+check lives in AWS WAF. Access is gated either way, because the Cognito authorizer verifies the token on every method.
+
+Two things to weigh if you copy this pattern. AWS WAF inspects only the first 8 KB of a body on a regional resource,
+and this web ACL has no size preflight, so its argument rules block a body they can't fully see. The `mcp/` scope check
+is also close to redundant here, because the authorizer checks the scope properly. You can leave this layer out and
+rely on the network alone. It is here as a reference for where an origin-side check goes.
 
 ## Deploy
 

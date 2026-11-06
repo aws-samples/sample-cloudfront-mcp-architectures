@@ -212,8 +212,11 @@ the web ACL, as described in [AWS WAF pricing](https://aws.amazon.com/waf/pricin
 Where the origin can take a web ACL, which is the case for the AgentCore Gateway, the API Gateway stage, and the ALB, the
 stack adds a regional web ACL named `OriginWaf`. It blocks by default and allows only requests that carry CloudFront's
 secret `x-origin-verify` header and an `mcp/` scope in the `x-jwt-claims` header that the CloudFront Function sets.
-Network locks prove that a request came from CloudFront. This web ACL proves that the request came through this
-distribution and its edge rules, and it stops a workload inside the VPC from skipping them.
+A network lock proves that a request came from CloudFront. This web ACL is what reads the secret header, so the origin
+can tell a request that came through this distribution, with its edge rules, from one that came through another
+distribution in the same account. On AgentCore it is the only origin lock available. On API Gateway and EKS the network
+already locks the origin, so the layer is optional there. Each of those patterns has a note on what it adds and what it
+costs.
 
 ### Observability with AWS WAF
 
