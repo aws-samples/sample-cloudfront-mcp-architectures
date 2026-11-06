@@ -1,13 +1,11 @@
 // Writes docs/diagrams/<name>/<name>.drawio for every diagram. Then: node docs/diagrams/export.mjs
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { diagram, NODE } from './drawio.mjs';
+import { diagram } from './drawio.mjs';
 
 const here = import.meta.dirname;
 // The MCP mark, from github.com/modelcontextprotocol (docs/favicon.svg, CC BY 4.0); see docs/diagrams/README.md.
 const MCP_ICON = readFileSync(path.join(here, 'assets', 'mcp.svg'), 'utf8');
-const mid = (a, b) => (a + NODE + b) / 2;
-const BADGE_Y = (rowY) => rowY + 54 - 14 - 32; // above the arrow between two nodes on that row
 
 // Pattern diagrams (SRA style). R is the icon row the request flows along, R2 the row under it.
 const R = 240;
@@ -138,49 +136,6 @@ write('pattern-mcp-web-function-cloudfront', diagram({
     d.edge(policy, wf, { exit: [0.5, 0], entry: [0.5, 1], elbow: 'vertical', color: '#DD344C', dashed: true, label: 'Lambda checks the signature<br>before the code runs', at: 0, dy: 0, dx: -100 });
     d.edge(bucket, wf, { exit: [0.5, 0], entry: [1, 0.75], elbow: 'vertical', color: '#999999', dashed: true, label: 'revision reads the zip', at: 0.5, dy: 14, dx: 30 });
     d.edge(wf, cog, { label: 'JWKS', dy: -14 });
-  },
-}));
-
-// ---------------------------------------------------------------------------------------------------------------------
-// Overview: the four apps
-write('overview', diagram({
-  name: 'overview',
-  title: 'Remote MCP servers behind Amazon CloudFront: four patterns',
-  subtitle: 'Four CDK apps. Each deploys one CloudFront distribution with AWS WAF and a CloudFront Function at the edge, one origin type, and its own Amazon Cognito issuer',
-  width: 1980, height: 900,
-  build(d) {
-    const rows = [
-      { key: 'agentcore', y: 190, app: 'pattern-mcp-agentcore-cloudfront', scope: 'mcp/agentcore', origin: { key: 'gw', cat: 'aiml', category: 'MCP gateway', label: 'AgentCore Gateway', sub: 'JWT authorizer, Runtime behind', shape: 'bedrock_agentcore' } },
-      { key: 'apigw', y: 350, app: 'pattern-mcp-api-gateway-cloudfront', scope: 'mcp/api-gateway', origin: { key: 'apigw', cat: 'networking', category: 'API', label: 'Amazon API Gateway', sub: 'private REST API via VPC origin, Lambda', shape: 'api_gateway' } },
-      { key: 'eks', y: 510, app: 'pattern-mcp-eks-cloudfront', scope: 'mcp/eks', origin: { key: 'eks', cat: 'containers', category: 'Containers', label: 'Amazon EKS Auto Mode', sub: 'internal ALB via VPC origin, pods', shape: 'eks' } },
-      { key: 'wf', y: 670, app: 'pattern-mcp-web-function-cloudfront', scope: 'mcp/web-function', origin: { key: 'wf', cat: 'compute', category: 'Compute', label: 'Lambda Web Function', sub: 'IamAuth endpoint, OAC', shape: 'lambda' } },
-    ];
-    const client = d.actor({ key: 'client', label: 'MCP client', sub: 'agent, Bearer token', x: 40, y: 430 });
-    d.group('awsCloud', 'AWS Cloud', { x: 220, y: 110, w: 1260, h: 740 });
-    d.text('<b>Amazon CloudFront edge (global)</b>', { x: 280, y: 130, w: 400, color: '#8C4FFF' });
-    d.text('<b>us-east-1</b>', { x: 840, y: 130, w: 400, color: '#00A4A6' });
-    d.badge(1, mid(40, 280) - 14, BADGE_Y(430));
-    for (const r of rows) {
-      d.group('generic', `patterns/${r.app}`, { x: 260, y: r.y - 24, w: 1200, h: 164 });
-      const waf = d.service({ key: `waf-${r.key}`, cat: 'security', category: 'Edge security', label: 'AWS WAF', sub: 'EdgeWaf, MCP rule stack', shape: 'waf', x: 280, y: r.y });
-      const cf = d.service({ key: `cf-${r.key}`, cat: 'networking', category: 'Content delivery', label: 'Amazon CloudFront', sub: '/mcp, viewer function', shape: 'cloudfront', x: 480, y: r.y });
-      const o = d.service({ ...r.origin, x: 840, y: r.y });
-      const cog = d.service({ key: `cognito-${r.key}`, cat: 'security', category: 'Identity', label: 'Amazon Cognito', sub: `scope ${r.scope}`, shape: 'cognito', x: 1240, y: r.y });
-      d.edge(client, waf, { exit: [1, 0.5], entry: [0, 0.5] });
-      d.edge(waf, cf);
-      d.edge(cf, o, { label: 'origin lock, see pattern' });
-      d.edge(o, cog, { color: '#999999', dashed: true });
-    }
-    d.badge(2, 280 + 60 - 14, 150);
-    d.badge(3, 480 + 60 - 14, 150);
-    d.badge(4, 840 + 60 - 14, 150);
-    d.badge(5, 1240 + 60 - 14, 150);
-    d.legend([
-      { title: 'One app per pattern', text: 'Each directory under patterns/ is a CDK app you deploy on its own. Every app ends in the same hello-world MCP server; they differ in the origin and in how it is locked to CloudFront.' },
-      { title: 'The same edge in every app', text: 'A CloudFront-scope web ACL with the MCP rule stack from the AWS blog (IP reputation, rate limits per IP, initialize and tool, Bot Control, body size, protocol version, tool allowlist, SSRF, SQLi and XSS in arguments), and a viewer-request CloudFront Function that pre-filters tokens.' },
-      { title: 'Four origin locks', text: 'A WAF-checked secret header on a public AgentCore Gateway; a VPC origin into a private network (API Gateway, EKS), with a regional web ACL where the origin takes one; OAC with SigV4 on a Lambda Web Function.' },
-      { title: 'One Cognito issuer per app', text: 'Each app has its own user pool issuing client-credentials tokens with one scope. The edge decodes; the origin verifies the signature and the scope.' },
-    ], { x: 1520 });
   },
 }));
 

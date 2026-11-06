@@ -5,7 +5,6 @@ exports embedded in the READMEs, `<name>.svg` and `<name>.png`.
 
 | Diagram | Shows |
 |---|---|
-| [overview](overview/overview.svg) | The four CDK apps: each with AWS WAF and CloudFront at the edge, one origin type and its own Amazon Cognito issuer |
 | [pattern-mcp-agentcore-cloudfront](pattern-mcp-agentcore-cloudfront/pattern-mcp-agentcore-cloudfront.svg) | Secret header and regional AWS WAF on the AgentCore Gateway, Gateway JWT authorizer, Runtime behind it |
 | [pattern-mcp-api-gateway-cloudfront](pattern-mcp-api-gateway-cloudfront/pattern-mcp-api-gateway-cloudfront.svg) | VPC origin, internal NLB, `execute-api` VPC endpoint, private REST API with a Cognito authorizer, Lambda |
 | [pattern-mcp-eks-cloudfront](pattern-mcp-eks-cloudfront/pattern-mcp-eks-cloudfront.svg) | VPC origin, internal ALB with regional AWS WAF, pods on EKS Auto Mode bound with a TargetGroupBinding, NAT gateway |
@@ -15,8 +14,7 @@ exports embedded in the READMEs, `<name>.svg` and `<name>.png`.
 The pattern diagrams follow the style of the [AWS Security Reference Architecture examples](https://github.com/aws-samples/aws-security-reference-architecture-examples):
 official AWS Architecture Icons from draw.io's AWS4 library, AWS Cloud, Region, VPC and subnet boundaries in their
 standard colors, and a black number on every resource that matches a numbered line in the pattern's README, which is
-the legend. The overview uses category-tinted containers with a legend inside the image. `drawio.mjs` encodes both
-looks. `build.mjs` defines each diagram against it.
+the legend. `drawio.mjs` emits the XML. `build.mjs` defines each diagram against it.
 
 To change a diagram, edit its definition in `build.mjs`, then regenerate and export:
 
