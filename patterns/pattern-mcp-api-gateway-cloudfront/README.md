@@ -1,4 +1,4 @@
-# Amazon API Gateway behind CloudFront (self-managed MCP server)
+# Amazon API Gateway behind CloudFront (your own MCP server)
 
 In this pattern, CloudFront uses a VPC origin to reach an internal Network Load Balancer. The load balancer passes the
 request to an `execute-api` VPC endpoint, which reaches a private API Gateway REST API. The API invokes an AWS Lambda

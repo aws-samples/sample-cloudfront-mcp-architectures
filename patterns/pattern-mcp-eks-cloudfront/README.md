@@ -1,4 +1,4 @@
-# Amazon EKS behind CloudFront (self-managed MCP server)
+# Amazon EKS behind CloudFront (your own MCP server)
 
 In this pattern, CloudFront uses a VPC origin to reach an internal Application Load Balancer, and the load balancer
 sends requests to MCP server pods on an Amazon EKS Auto Mode cluster. The pods run in private subnets behind one NAT

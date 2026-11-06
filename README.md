@@ -54,13 +54,14 @@ The following topics are common to all four patterns.
   in tool arguments. For details, see [AWS WAF at the edge](#aws-waf-at-the-edge).
 - Observability with AWS WAF. Every rule has its own metric and sampled requests, every tool call carries a label, and
   every block carries a request ID. For details, see [Observability with AWS WAF](#observability-with-aws-waf).
-- The four patterns. The following sections describe Amazon Bedrock AgentCore, where AgentCore runs the MCP server for
-  you, and Amazon API Gateway, Amazon EKS, and Lambda Web Function, where you run the MCP server yourself. The
+- The four patterns. The following sections describe Amazon Bedrock AgentCore, where a managed Gateway is the MCP
+  endpoint that clients talk to, and Amazon API Gateway, Amazon EKS, and Lambda Web Function, where your own code is
+  the MCP server. The
   [comparison table](#comparing-the-four-patterns) follows the patterns.
 
 ## The four patterns
 
-### Amazon Bedrock AgentCore (managed MCP server)
+### Amazon Bedrock AgentCore (managed MCP endpoint)
 
 In this pattern, CloudFront sends requests to an AgentCore Gateway, and the Gateway calls an AgentCore Runtime that runs
 the hello image. The following diagram shows the request path and the resources that the stack creates.
@@ -74,7 +75,7 @@ CloudFront adds a custom domain and an edge web ACL to a managed endpoint that h
 idle period sees a cold start, and tool names arrive as `hello___hello`. For details, see the
 [Amazon Bedrock AgentCore pattern](patterns/pattern-mcp-agentcore-cloudfront/README.md).
 
-### Amazon API Gateway (self-managed MCP server)
+### Amazon API Gateway (your own MCP server)
 
 In this pattern, CloudFront uses a VPC origin to reach an internal Network Load Balancer. The load balancer passes the
 request to an `execute-api` VPC endpoint, which reaches a private REST API. The API invokes an AWS Lambda function that
@@ -91,7 +92,7 @@ the token and the `mcp/api-gateway` scope, so Lambda never runs for a bad token.
 endpoint cost money while idle, and the REST API's 29-second timeout rules out long SSE streams. For details, see the
 [Amazon API Gateway pattern](patterns/pattern-mcp-api-gateway-cloudfront/README.md).
 
-### Amazon EKS (self-managed MCP server)
+### Amazon EKS (your own MCP server)
 
 In this pattern, CloudFront uses a VPC origin to reach an internal Application Load Balancer, and the load balancer sends
 requests to MCP server pods on an Amazon EKS Auto Mode cluster. The pods run in private subnets behind one NAT gateway.
@@ -107,7 +108,7 @@ group, and a `TargetGroupBinding` registers the pod IP addresses. The pods verif
 themselves. The cluster, its nodes, the load balancer, and the NAT gateway cost money while idle. For details, see the
 [Amazon EKS pattern](patterns/pattern-mcp-eks-cloudfront/README.md).
 
-### Lambda Web Function (self-managed MCP server)
+### Lambda Web Function (your own MCP server)
 
 In this pattern, CloudFront signs each origin request with origin access control and sends it to the regional endpoint of
 a Lambda Web Function, which runs the hello server from a zip file. The following diagram shows the request path and the
@@ -130,7 +131,7 @@ rate limiting and what CloudFront adds to each origin, see [Comparing the patter
 
 | | AgentCore | API Gateway | EKS | Lambda Web Function |
 |---|---|---|---|---|
-| **Who runs the MCP server** | AgentCore (managed) | You, on Lambda | You, on EKS Auto Mode | You, on a Lambda Web Function |
+| **The MCP server** | AgentCore Gateway, a managed MCP endpoint, with your container behind it on AgentCore Runtime | Your code, on Lambda | Your code, in pods on EKS Auto Mode | Your code, on a Lambda Web Function |
 | **Origin is private** | No. The Gateway endpoint is public | Yes | Yes | No, but the endpoint refuses requests that CloudFront didn't sign |
 | **Origin lock** | Secret header, checked by a regional web ACL | VPC origin, resource policy, security groups, and the secret header | VPC origin, security groups, and the secret header | IAM: SigV4 through origin access control |
 | **AWS WAF layers** | Edge and regional | Edge and regional | Edge and regional | Edge only |

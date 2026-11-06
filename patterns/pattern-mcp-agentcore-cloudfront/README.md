@@ -1,4 +1,4 @@
-# Amazon Bedrock AgentCore behind CloudFront (managed MCP server)
+# Amazon Bedrock AgentCore behind CloudFront (managed MCP endpoint)
 
 In this pattern, CloudFront sends requests to an Amazon Bedrock AgentCore Gateway, and the Gateway calls an AgentCore
 Runtime that runs the hello image.

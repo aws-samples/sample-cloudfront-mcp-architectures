@@ -1,4 +1,4 @@
-# Lambda Web Function behind CloudFront (self-managed MCP server)
+# Lambda Web Function behind CloudFront (your own MCP server)
 
 In this pattern, CloudFront signs each origin request with origin access control (OAC) and sends it to the regional
 endpoint of a [Lambda Web Function](https://docs.aws.amazon.com/lambda/latest/dg/web-functions.html), which runs the
