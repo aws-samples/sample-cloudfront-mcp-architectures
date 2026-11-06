@@ -81,6 +81,8 @@ function codeBucket(scope: Construct, functionName: string): { bucket: string; k
   const bucket = new s3.Bucket(scope, 'WebFunctionCodeBucket', {
     versioned: true,
     enforceSSL: true,
+    blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+    encryption: s3.BucketEncryption.S3_MANAGED,
     removalPolicy: RemovalPolicy.DESTROY,
     autoDeleteObjects: true,
   });
