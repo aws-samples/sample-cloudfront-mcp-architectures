@@ -127,18 +127,15 @@ has one web ACL layer rather than two. For details, see the
 ## Comparing the four patterns
 
 The following table compares the patterns on the points that decide between them. For the full comparison, including
-rate limiting and what CloudFront adds to each origin, see [Comparing the patterns](docs/comparison.md).
+where the token is verified, cold starts, rate limiting, and what CloudFront adds to each origin, see
+[Comparing the patterns](docs/comparison.md).
 
-| | AgentCore | API Gateway | EKS | Lambda Web Function |
-|---|---|---|---|---|
-| **The MCP server** | AgentCore Gateway, a managed MCP endpoint, with your container behind it on AgentCore Runtime | Your code, on Lambda | Your code, in pods on EKS Auto Mode | Your code, on a Lambda Web Function |
-| **Origin is private** | No. The Gateway endpoint is public | Yes | Yes | No, but the endpoint refuses requests that CloudFront didn't sign |
-| **Origin lock** | Secret header, checked by a regional web ACL | VPC origin, resource policy, security groups, and the secret header | VPC origin, security groups, and the secret header | IAM: SigV4 through origin access control |
-| **AWS WAF layers** | Edge and regional | Edge and regional | Edge and regional | Edge only |
-| **Token verified by** | Gateway JWT authorizer | Cognito authorizer on the API | The MCP server | The MCP server |
-| **Cold start** | On a new Runtime session | On a new Lambda environment | None | On a new execution environment |
-| **Idle cost** | None | NLB and VPC endpoint | Cluster, nodes, ALB, NAT gateway | None |
-| **Operations** | Least | Low | Most | Low |
+| Pattern | The MCP server | Origin lock | Idle cost |
+|---|---|---|---|
+| AgentCore | AgentCore Gateway, a managed MCP endpoint, with your container behind it | Secret header, checked by a regional web ACL | None |
+| API Gateway | Your code, on Lambda | Private API, reached only through a VPC origin and a VPC endpoint | NLB and VPC endpoint |
+| EKS | Your code, in pods on EKS Auto Mode | Internal ALB, reached only through a VPC origin | Cluster, nodes, ALB, NAT gateway |
+| Lambda Web Function | Your code, on a Lambda Web Function | IAM: CloudFront signs each request with SigV4 | None |
 
 ## Further details
 
