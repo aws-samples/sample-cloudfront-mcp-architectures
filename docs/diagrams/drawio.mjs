@@ -25,21 +25,24 @@ export const CAT = {
 
 // Group boundary types with the authoritative AWS colors.
 const GROUPS = {
-  awsCloud: { icon: 'group_aws_cloud', stroke: '#232F3E', fill: 'light-dark(#232F3E0D,#232F3E0D)', dashed: 0, fontSize: 12, bold: 0, container: 0 },
-  region: { icon: 'group_region', stroke: '#00A4A6', fill: 'light-dark(#0C7B7D0D,#0C7B7D0D)', dashed: 1, fontSize: 14, bold: 1, container: 0 },
-  vpc: { icon: 'group_vpc2', stroke: '#8C4FFF', fill: 'light-dark(#8C4FFF0D,#8C4FFF0D)', dashed: 0, fontSize: 12, bold: 0, container: 0 },
-  privateSubnet: { icon: 'group_private_subnet', stroke: '#147EBA', fill: 'light-dark(#147EBA0D,#147EBA0D)', dashed: 0, fontSize: 12, bold: 0, container: 0 },
-  publicSubnet: { icon: 'group_public_subnet', stroke: '#248814', fill: 'light-dark(#2488140D,#2488140D)', dashed: 0, fontSize: 12, bold: 0, container: 0 },
+  awsCloud: { icon: 'group_aws_cloud', stroke: '#232F3E', fill: 'light-dark(#232F3E0D,#232F3E0D)', dashed: 0, fontSize: 14, bold: 0, container: 0 },
+  region: { icon: 'group_region', stroke: '#00A4A6', fill: 'light-dark(#0C7B7D0D,#0C7B7D0D)', dashed: 1, fontSize: 15, bold: 1, container: 0 },
+  vpc: { icon: 'group_vpc2', stroke: '#8C4FFF', fill: 'light-dark(#8C4FFF0D,#8C4FFF0D)', dashed: 0, fontSize: 14, bold: 0, container: 0 },
+  privateSubnet: { icon: 'group_private_subnet', stroke: '#147EBA', fill: 'light-dark(#147EBA0D,#147EBA0D)', dashed: 0, fontSize: 14, bold: 0, container: 0 },
+  publicSubnet: { icon: 'group_public_subnet', stroke: '#248814', fill: 'light-dark(#2488140D,#2488140D)', dashed: 0, fontSize: 14, bold: 0, container: 0 },
   securityGroup: { icon: 'group_security_group', stroke: '#DD3522', fill: 'none', dashed: 0, fontSize: 12, bold: 0, container: 0 },
-  generic: { icon: null, stroke: '#7D8998', fill: 'none', dashed: 1, fontSize: 12, bold: 0, container: 0 },
+  generic: { icon: null, stroke: '#7D8998', fill: 'none', dashed: 1, fontSize: 14, bold: 0, container: 0 },
   // The CloudFront edge: global, so outside any Region. Drawn in the CloudFront purple.
-  edge: { icon: null, stroke: '#8C4FFF', fill: 'none', dashed: 0, fontSize: 14, bold: 1, container: 0 },
+  edge: { icon: null, stroke: '#8C4FFF', fill: 'none', dashed: 0, fontSize: 15, bold: 1, container: 0 },
 };
 
 export const NODE = 120; // container size; icon is 48x48 at (36, 30)
-export const ICON = 56; // bare icon size (SRA style); its label sits underneath
+export const ICON = 64; // bare icon size (SRA style); its label sits underneath
+const sx = (v) => v;
+const SX = 1;
 
 export function diagram({ name, title, subtitle, width, height, build, titleBlock = true }) {
+  width = sx(width);
   const cells = [];
   let n = 0;
   const id = (p) => `${p}-${++n}`;
@@ -61,7 +64,7 @@ export function diagram({ name, title, subtitle, width, height, build, titleBloc
       const g = GROUPS[type];
       const gid = id(type);
       const icon = g.icon ? `shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.${g.icon};spacingLeft=30;` : `rounded=0;${num ? 'spacingLeft=30;' : ''}`;
-      cell(`<mxCell id="${gid}" style="${GROUP_POINTS}outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=${g.fontSize};fontStyle=${g.bold};${icon}strokeColor=${g.stroke};fillColor=${g.fill};fillStyle=auto;verticalAlign=top;align=left;fontColor=${g.stroke};dashed=${g.dashed};container=${g.container};pointerEvents=0;collapsible=0;recursiveResize=0;${FONT}" value="${html(label)}" vertex="1" parent="${parent}"><mxGeometry x="${x}" y="${y}" width="${w}" height="${h}" as="geometry" /></mxCell>`);
+      cell(`<mxCell id="${gid}" style="${GROUP_POINTS}outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=${g.fontSize};fontStyle=${g.bold};${icon}strokeColor=${g.stroke};fillColor=${g.fill};fillStyle=auto;verticalAlign=top;align=left;fontColor=${g.stroke};dashed=${g.dashed};container=${g.container};pointerEvents=0;collapsible=0;recursiveResize=0;${FONT}" value="${html(label)}" vertex="1" parent="${parent}"><mxGeometry x="${sx(x)}" y="${y}" width="${sx(w)}" height="${h}" as="geometry" /></mxCell>`);
       if (num) api.num(num, x - 6, y + (g.icon ? 30 : 4));
       return gid;
     },
@@ -93,29 +96,29 @@ export function diagram({ name, title, subtitle, width, height, build, titleBloc
       const iid = `icon-${key}`;
       const value = sub ? `${label}<div><i>${sub}</i></div>` : label;
       const style = image
-        ? `shape=image;imageAspect=1;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontColor=#232F3E;fontSize=12;fontStyle=0;${FONT}image=data:image/svg+xml,${Buffer.from(image).toString('base64')};`
+        ? `shape=image;imageAspect=1;aspect=fixed;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontColor=#232F3E;fontSize=14;fontStyle=0;${FONT}image=data:image/svg+xml,${Buffer.from(image).toString('base64')};`
         : resource
-          ? `sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=${c.stroke};strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${shape};${FONT}`
-          : `sketch=0;${POINTS16}outlineConnect=0;fontColor=#232F3E;fillColor=${c.stroke};strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.${shape};${FONT}`;
-      cell(`<mxCell id="${iid}" style="${style}" value="${html(value)}" vertex="1" parent="${parent}"><mxGeometry x="${x}" y="${y}" width="${ICON}" height="${ICON}" as="geometry" /></mxCell>`);
+          ? `sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;fillColor=${c.stroke};strokeColor=none;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=14;fontStyle=0;aspect=fixed;pointerEvents=1;shape=mxgraph.aws4.${shape};${FONT}`
+          : `sketch=0;${POINTS16}outlineConnect=0;fontColor=#232F3E;fillColor=${c.stroke};strokeColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=14;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.${shape};${FONT}`;
+      cell(`<mxCell id="${iid}" style="${style}" value="${html(value)}" vertex="1" parent="${parent}"><mxGeometry x="${sx(x)}" y="${y}" width="${ICON}" height="${ICON}" as="geometry" /></mxCell>`);
       if (num) api.num(num, x - 14, y - 14);
       return iid;
     },
     // An SRA-style index badge: black circle, white number, at absolute coordinates (its top-left).
     num(value, x, y) {
-      cell(`<mxCell id="num-${String(value).replace('.', '-')}" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;fontColor=#FFFFFF;fontStyle=1;fontSize=13;${FONT}" value="${value}" vertex="1" parent="1"><mxGeometry x="${x}" y="${y}" width="28" height="28" as="geometry" /></mxCell>`);
+      cell(`<mxCell id="num-${String(value).replace('.', '-')}" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#000000;strokeColor=#000000;fontColor=#FFFFFF;fontStyle=1;fontSize=15;${FONT}" value="${value}" vertex="1" parent="1"><mxGeometry x="${sx(x)}" y="${y}" width="30" height="30" as="geometry" /></mxCell>`);
     },
     // A plain text label.
-    text(value, { x, y, w, h = 20, color = '#232F3E', size = 12, bold = false, parent = '1', align = 'center' }) {
-      cell(`<mxCell id="${id('text')}" value="${html(value)}" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=${align};verticalAlign=middle;fontSize=${size};fontStyle=${bold ? 1 : 0};fontColor=${color};${FONT}" vertex="1" parent="${parent}"><mxGeometry x="${x}" y="${y}" width="${w}" height="${h}" as="geometry" /></mxCell>`);
+    text(value, { x, y, w, h = 22, color = '#232F3E', size = 14, bold = false, parent = '1', align = 'center' }) {
+      cell(`<mxCell id="${id('text')}" value="${html(value)}" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=${align};verticalAlign=middle;fontSize=${size};fontStyle=${bold ? 1 : 0};fontColor=${color};${FONT}" vertex="1" parent="${parent}"><mxGeometry x="${sx(x)}" y="${y}" width="${sx(w)}" height="${h}" as="geometry" /></mxCell>`);
     },
     // An edge between two cells. exit/entry are [x,y] in 0..1. label sits at `at` along the edge (-1..1), offset dy px.
     edge(source, target, { exit = [1, 0.5], entry = [0, 0.5], label, at = 0, dy = 28, dx = 0, color = '#545B64', dashed = false, both = false, elbow = 'horizontal', points = [] } = {}) {
       const eid = id('e');
       const start = both ? 'startArrow=block;startFill=1;' : 'startArrow=none;';
-      cell(`<mxCell id="${eid}" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;elbow=${elbow};${start}endFill=1;strokeColor=${color};${dashed ? 'dashed=1;' : ''}rounded=0;exitX=${exit[0]};exitY=${exit[1]};entryX=${entry[0]};entryY=${entry[1]};${FONT}" edge="1" parent="1" source="${source}" target="${target}"><mxGeometry relative="1" as="geometry">${points.length ? `<Array as="points">${points.map(([px, py]) => `<mxPoint x="${px}" y="${py}" />`).join('')}</Array>` : ''}</mxGeometry></mxCell>`);
+      cell(`<mxCell id="${eid}" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;elbow=${elbow};${start}endFill=1;strokeColor=${color};${dashed ? 'dashed=1;' : ''}rounded=0;exitX=${exit[0]};exitY=${exit[1]};entryX=${entry[0]};entryY=${entry[1]};${FONT}" edge="1" parent="1" source="${source}" target="${target}"><mxGeometry relative="1" as="geometry">${points.length ? `<Array as="points">${points.map(([px, py]) => `<mxPoint x="${sx(px)}" y="${py}" />`).join('')}</Array>` : ''}</mxGeometry></mxCell>`);
       if (label) {
-        cell(`<mxCell id="${eid}-label" value="${html(label)}" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontSize=11;fontColor=${color};${FONT}" connectable="0" vertex="1" parent="${eid}"><mxGeometry relative="1" x="${at}" y="0" as="geometry"><mxPoint x="${dx}" y="${dy}" as="offset" /></mxGeometry></mxCell>`);
+        cell(`<mxCell id="${eid}-label" value="${html(label)}" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=none;fontSize=13;fontColor=${color};${FONT}" connectable="0" vertex="1" parent="${eid}"><mxGeometry relative="1" x="${at}" y="0" as="geometry"><mxPoint x="${sx(dx)}" y="${dy}" as="offset" /></mxGeometry></mxCell>`);
       }
       return eid;
     },
