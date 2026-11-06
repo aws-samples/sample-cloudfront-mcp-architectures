@@ -1,7 +1,7 @@
-# Remote MCP servers behind Amazon CloudFront
+# Architecture patterns for remote MCP servers behind Amazon CloudFront
 
-This repository shows four ways to run a remote MCP (Model Context Protocol) server behind Amazon CloudFront and AWS
-WAF. Each pattern is an AWS CDK app that you deploy on its own. Every pattern uses the same edge protection and the same
+Four patterns for running a remote MCP (Model Context Protocol) server behind Amazon CloudFront and AWS WAF, one per
+origin type. Each is an AWS CDK app that you deploy on its own. All four use the same edge protection and the same
 OAuth 2.0 authentication, so you can compare the origins directly.
 
 ## Why CloudFront and AWS WAF in front of an MCP server

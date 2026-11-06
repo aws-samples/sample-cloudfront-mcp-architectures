@@ -1,7 +1,7 @@
 {
   "name": "sample-cloudfront-mcp-architectures",
   "version": "1.0.0",
-  "description": "Remote MCP servers behind Amazon CloudFront: four architecture patterns, one CDK app each",
+  "description": "Architecture patterns for remote MCP servers behind Amazon CloudFront: four CDK apps, one per origin type",
   "directories": {
     "doc": "docs",
     "lib": "lib"
