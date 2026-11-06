@@ -8,16 +8,17 @@ information to effectively respond to your bug report or contribution.
 
 ## Adding a pattern
 
-1. Create `patterns/<n>-<origin>/` with an `origin.ts` that exports one function returning the pattern's CloudFront
-   origin, and a `README.md` that embeds a draw.io diagram of what is deployed (source in
-   `docs/diagrams/<name>/`, see its README). It receives `OriginProps` from `lib/waf.ts`:
-   the shared hello image, the origin secret, the regional web ACL ARN, the shared VPC and the Cognito user pool.
+1. Create `patterns/pattern-mcp-<origin>-cloudfront/` with a `cdk.json` (`"app": "npx tsx app.ts"`), an `app.ts` that
+   calls `patternApp(...)` from `lib/edge.ts`, a `stack.ts` and an `origin.ts` that returns the pattern's CloudFront
+   origin. Compose the stack from `lib/`: `mcpAuth(this, 'mcp/<origin>')`, `edgeWebAcl`, `originWebAcl` and
+   `originSecret` where the origin can take a web ACL, `helloImage` or the server zip, `viewerFunction`,
+   `mcpDistribution` and `mcpOutputs`.
 2. Lock the origin so it is reachable only through CloudFront, and verify the token there with the origin's own
-   verifier. Add the pattern's scope to `PATTERN_SCOPES` in `lib/auth.ts`.
-3. In `lib/stack.ts`, give the pattern its own distribution with `mcpDistribution(...)`, and add its URL to the stack
-   outputs. Add it to `PATTERN_STACKS` in `bin/app.ts` and
-   `PATTERNS` in `cfn/synth.mjs`, then run `npm run cfn` for its template.
-4. Run `npm test && npx cdk synth -q`, deploy, and save the output of `docs/e2e/cfn.sh` under `docs/e2e/`.
+   verifier, or in the hello server (`JWT_VERIFY=true`) where the origin has none.
+3. Add a diagram definition to `docs/diagrams/build.mjs` and export it (see `docs/diagrams/README.md`). Write the
+   pattern's `README.md` with the numbered resource list matching the diagram's badges, and add a column to
+   `docs/comparison.md` and a row to the root README.
+4. Run `npm test && npm run synth`, then deploy the pattern and call it with a token before opening a pull request.
 
 ## Reporting Bugs/Feature Requests
 
