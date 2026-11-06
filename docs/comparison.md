@@ -1,8 +1,10 @@
 # Comparing the patterns
 
 Every pattern puts the same hello-world MCP server behind its own CloudFront distribution, with the same edge web ACL,
-CloudFront Function and Amazon Cognito token flow. They differ in the origin, which decides how the origin is locked,
-where authentication fits, what it costs and whether calls see cold starts.
+CloudFront Function, and Amazon Cognito token flow. The patterns differ in the origin. The origin decides how it is
+locked to CloudFront, where authentication fits, what it costs, and whether calls see cold starts.
+
+The following table compares the four patterns.
 
 | | AgentCore | API Gateway | EKS | Web Function |
 |---|---|---|---|---|
@@ -19,9 +21,13 @@ where authentication fits, what it costs and whether calls see cold starts.
 
 ## Choosing a pattern
 
-- **The least to run, building on Amazon Bedrock:** AgentCore. Accept a public endpoint locked by a WAF-checked secret
-  header, and tool names prefixed with the target (`hello___hello`).
-- **Pay per request with API keys, usage plans or an existing API Gateway estate:** API Gateway.
-- **You run containers on Kubernetes and want the MCP server next to the services it calls:** EKS. No cold start, but
-  you pay for capacity while idle.
-- **Pay-per-use compute with no VPC, and an origin lock that rests on IAM rather than a shared secret:** Web Function.
+The right pattern depends on what you run today and what you want to operate.
+
+- Choose AgentCore if you want the least to run and you build on Amazon Bedrock. You accept a public endpoint that a
+  WAF-checked secret header locks, and tool names prefixed with the target, such as `hello___hello`.
+- Choose API Gateway if you want to pay for each request and use API keys, usage plans, or an existing API Gateway
+  estate.
+- Choose EKS if you run containers on Kubernetes and want the MCP server next to the services that it calls. There is
+  no cold start, but you pay for capacity while idle.
+- Choose Lambda Web Function if you want pay-per-use compute with no VPC and an origin lock that rests on IAM rather
+  than a shared secret.
