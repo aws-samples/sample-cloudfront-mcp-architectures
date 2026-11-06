@@ -8,6 +8,7 @@ The following table compares the four patterns.
 
 | | AgentCore | API Gateway | EKS | Web Function |
 |---|---|---|---|---|
+| **Who runs the MCP server** | AgentCore (managed) | You, on Lambda | You, on EKS Auto Mode | You, on a Lambda Web Function |
 | **Origin** | AgentCore Gateway, Runtime behind it | Private REST API through a VPC origin, internal NLB and `execute-api` endpoint, with Lambda running the image | Internal ALB through a VPC origin, with pods on an EKS Auto Mode cluster | Lambda Web Function on its regional endpoint |
 | **Origin is private** | No: the Gateway endpoint is public. A PrivateLink endpoint plus a resource policy can close it, but a VPC origin then needs a load balancer in front (not built) | Yes | Yes | No, but the endpoint refuses anything CloudFront did not sign |
 | **Origin lock** | Secret header, checked by a regional web ACL before the Gateway calls a target. The Runtime accepts only the Gateway's role | Resource policy on `aws:SourceVpce`, security groups from the CloudFront prefix list, plus the secret header on the stage | Security groups from the CloudFront prefix list, plus the secret header on the ALB | IAM: SigV4 through OAC, enforced by Lambda's resource policy before the code runs |
