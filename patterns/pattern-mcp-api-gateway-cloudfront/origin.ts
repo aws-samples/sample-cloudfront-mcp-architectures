@@ -2,20 +2,29 @@ import { aws_apigateway as apigw, aws_cloudfront as cloudfront, aws_cloudfront_o
 import { readFileSync } from 'fs';
 import * as path from 'path';
 import { Construct } from 'constructs';
-import { PATTERN_SCOPES } from '../../lib/auth';
+import { McpAuth } from '../../lib/auth';
+import { HelloImage } from '../../lib/edge';
 import { CLOUDFRONT_ORIGIN_FACING } from '../../lib/vpc';
-import { ORIGIN_VERIFY_HEADER, OriginProps } from '../../lib/waf';
+import { ORIGIN_VERIFY_HEADER } from '../../lib/waf';
+
+export interface ApiGatewayOriginProps {
+  image: HelloImage;
+  originSecret: string;
+  originWafArn: string;
+  vpc: ec2.IVpc;
+  auth: McpAuth;
+}
 
 // CloudFront VPC origin -> internal NLB (TCP passthrough) -> execute-api VPC endpoint -> private REST API -> Lambda (hello image + Lambda Web Adapter).
 // The API has no public endpoint: its resource policy admits only the VPC endpoint.
 // An Amazon Cognito authorizer on every method checks the token and its mcp/api-gateway scope before Lambda runs.
-export function apiGatewayOrigin(scope: Construct, { image, originSecret, originWafArn, vpc, auth }: OriginProps): cloudfront.IOrigin {
+export function apiGatewayOrigin(scope: Construct, { image, originSecret, originWafArn, vpc, auth }: ApiGatewayOriginProps): cloudfront.IOrigin {
   const fn = new lambda.DockerImageFunction(scope, 'ApiGatewayHello', {
     code: lambda.DockerImageCode.fromEcr(image.repository, { tagOrDigest: image.imageTag }),
     architecture: lambda.Architecture.ARM_64,
     memorySize: 512,
     timeout: Duration.seconds(29),
-    environment: { JWT_ISSUER: auth.issuer, JWT_SCOPE: PATTERN_SCOPES.apiGateway }, // serves /.well-known metadata; the authorizer checks tokens
+    environment: { JWT_ISSUER: auth.issuer, JWT_SCOPE: auth.scope }, // serves /.well-known metadata; the authorizer checks tokens
   });
 
   // A load balancer cannot change VPC or type in place: rename it (and its VPC origin) when either changes.
@@ -49,7 +58,7 @@ export function apiGatewayOrigin(scope: Construct, { image, originSecret, origin
     defaultMethodOptions: {
       authorizer: new apigw.CognitoUserPoolsAuthorizer(scope, 'ApiGatewayAuthorizer', { cognitoUserPools: [auth.userPool] }),
       authorizationType: apigw.AuthorizationType.COGNITO,
-      authorizationScopes: [PATTERN_SCOPES.apiGateway],
+      authorizationScopes: [auth.scope],
     },
   });
   api.root.addMethod('ANY');

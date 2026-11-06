@@ -12,12 +12,12 @@ const jwks = { keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'k1', alg: 
 async function setup(t) {
   const idp = express().get('/.well-known/jwks.json', (_q, r) => r.json(jwks)).listen(0);
   const issuer = `http://127.0.0.1:${idp.address().port}`;
-  const mcp = createApp({ issuer, scope: 'mcp/alb', verify: true }).listen(0);
+  const mcp = createApp({ issuer, scope: 'mcp/eks', verify: true }).listen(0);
   t.after(() => { idp.close(); mcp.close(); });
   const now = Math.floor(Date.now() / 1000);
   const token = (claims, { key = privateKey, kid = 'k1', alg = 'RS256' } = {}) => {
     const part = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-    const input = `${part({ alg, kid })}.${part({ iss: issuer, token_use: 'access', scope: 'mcp/alb', client_id: 'c1', exp: now + 60, ...claims })}`;
+    const input = `${part({ alg, kid })}.${part({ iss: issuer, token_use: 'access', scope: 'mcp/eks', client_id: 'c1', exp: now + 60, ...claims })}`;
     return `${input}.${sign('RSA-SHA256', Buffer.from(input), key).toString('base64url')}`;
   };
   const call = (bearer) => fetch(`http://127.0.0.1:${mcp.address().port}/mcp`, {
@@ -59,6 +59,6 @@ test('protected-resource metadata names the viewer-facing resource and the issue
     resource: 'https://d111111abcdef8.cloudfront.net/mcp',
     authorization_servers: [issuer],
     bearer_methods_supported: ['header'],
-    scopes_supported: ['mcp/alb'],
+    scopes_supported: ['mcp/eks'],
   });
 });

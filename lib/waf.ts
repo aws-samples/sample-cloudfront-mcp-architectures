@@ -1,6 +1,5 @@
-import { aws_ec2 as ec2, aws_ecr as ecr, aws_wafv2 as wafv2 } from 'aws-cdk-lib';
+import { aws_wafv2 as wafv2 } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { McpAuth } from './auth';
 
 export const ORIGIN_VERIFY_HEADER = 'x-origin-verify';
 // Set by lib/viewer-request.js to the decoded JWT payload; any client-sent copy is replaced.
@@ -345,8 +344,8 @@ export function edgeWebAcl(scope: Construct, props: EdgeWafProps = {}): wafv2.Cf
   });
 }
 
-// Regional web ACL for origins (AgentCore Gateway, API Gateway stage, ALBs): only requests carrying CloudFront's secret
-// header get through, and tool arguments are checked again for callers inside the VPC. No size preflight here, and the
+// Regional web ACL for the origin (AgentCore Gateway, API Gateway stage, ALB): only requests carrying CloudFront's secret
+// header get through, and tool arguments are checked again for callers inside the VPC. No size preflight here, and an
 // ALB inspects only 8 KB, so the argument rules fail closed on larger bodies.
 export function originWebAcl(scope: Construct, originSecret: string): wafv2.CfnWebACL {
   return new wafv2.CfnWebACL(scope, 'OriginWaf', {
@@ -372,7 +371,7 @@ export function originWebAcl(scope: Construct, originSecret: string): wafv2.CfnW
             },
             { orStatement: { statements: [
               {
-                // Some pattern's scope: this web ACL is shared, so each origin checks that the scope is its own.
+                // An mcp/ scope in the decoded claims; the origin checks that it is exactly its own, with the signature.
                 // `scope` is space-separated. JSON.stringify puts no spaces around ':' and escapes '"' inside values.
                 regexMatchStatement: {
                   fieldToMatch: { singleHeader: { Name: CLAIMS_HEADER } },
@@ -389,14 +388,4 @@ export function originWebAcl(scope: Construct, originSecret: string): wafv2.CfnW
       visibilityConfig: visibility('AllowCloudFrontWithMcpScope'),
     }],
   });
-}
-
-// What every pattern's origin function receives from the stack.
-export interface OriginProps {
-  // The hello image: a CDK image asset, or a repository and tag the CloudFormation template takes as parameters.
-  image: { repository: ecr.IRepository; imageTag: string };
-  originSecret: string;
-  originWafArn: string;
-  vpc: ec2.IVpc;
-  auth: McpAuth;
 }

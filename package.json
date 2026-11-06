@@ -1,20 +1,20 @@
 {
   "name": "sample-cloudfront-mcp-architectures",
   "version": "1.0.0",
-  "description": "Remote MCP servers behind Amazon CloudFront, one pattern per origin type",
+  "description": "Remote MCP servers behind Amazon CloudFront: four architecture patterns, one CDK app each",
   "directories": {
     "doc": "docs",
     "lib": "lib"
   },
   "scripts": {
     "postinstall": "npm --prefix server ci",
-    "test": "node --test lib/*.test.mjs patterns/*/*.test.mjs cfn/*.test.mjs && npm --prefix server test",
+    "test": "node --test lib/*.test.mjs patterns/*/*.test.mjs && npm --prefix server test",
     "build": "tsc",
-    "cdk": "cdk",
-    "cfn": "node cfn/synth.mjs"
+    "synth": "for p in patterns/*/; do (cd \"$p\" && npx cdk synth -q) || exit 1; done"
   },
   "license": "MIT-0",
   "devDependencies": {
+    "@aws-cdk/lambda-layer-kubectl-v34": "^2.2.2",
     "@types/node": "^26.6.5",
     "aws-cdk": "^2.1145.0",
     "aws-cdk-lib": "^2.273.0",

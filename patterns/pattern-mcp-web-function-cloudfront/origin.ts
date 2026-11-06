@@ -1,20 +1,21 @@
 import { aws_cloudfront as cloudfront, aws_cloudfront_origins as origins, aws_iam as iam, aws_lambda as lambda, aws_s3 as s3, aws_s3_deployment as s3deploy, Fn, RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { PATTERN_SCOPES } from '../../lib/auth';
-import { OriginProps } from '../../lib/waf';
 import * as path from 'path';
+import { McpAuth } from '../../lib/auth';
 
-// The server code as a zip in a versioned bucket. The CloudFormation template takes it as parameters (see the README).
-export interface WebFunctionCode { bucket: string; key: string; versionId: string }
+export interface WebFunctionOrigin {
+  origin: cloudfront.IOrigin;
+  // Let this distribution, and nothing else, invoke the endpoint.
+  grant(distribution: cloudfront.IDistribution): void;
+}
 
 // CloudFront -> Lambda Web Function on its regional (HomeRegion) endpoint.
 // The endpoint is IamAuth: CloudFront signs every origin request with SigV4 (OAC), and the function's resource-based
 // policy lets only this distribution invoke it, so an unsigned call straight to the endpoint is refused.
-export function webFunctionOrigin(scope: Construct, { auth, code }: Pick<OriginProps, 'auth'> & { code?: WebFunctionCode }): { origin: cloudfront.IOrigin; grant(distribution: cloudfront.IDistribution): void } {
+export function webFunctionOrigin(scope: Construct, auth: McpAuth): WebFunctionOrigin {
   const { stackName } = Stack.of(scope);
   const functionName = `${stackName}-hello`;
   const fn = new lambda.CfnWebFunction(scope, 'WebFunction', { functionName });
-  code ??= codeBucket(scope, functionName);
 
   const role = new iam.Role(scope, 'WebFunctionRole', {
     assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
@@ -23,13 +24,13 @@ export function webFunctionOrigin(scope: Construct, { auth, code }: Pick<OriginP
   const revision = new lambda.CfnWebFunctionRevision(scope, 'WebFunctionRevision', {
     functionName: fn.attrFunctionArn,
     buildConfig: {
-      codeConfig: { s3Object: code },
+      codeConfig: { s3Object: codeBucket(scope, functionName) },
       runtimeConfig: { runtime: 'nodejs24.x' },
     },
     serviceConfig: {
       executionRoleArn: role.roleArn,
       // Nothing in front of the function checks tokens, so the hello server does.
-      environmentVariables: { AWS_LAMBDA_NODEJS_ENTRYPOINT: 'server.js', JWT_ISSUER: auth.issuer, JWT_SCOPE: PATTERN_SCOPES.webFunction, JWT_VERIFY: 'true' },
+      environmentVariables: { AWS_LAMBDA_NODEJS_ENTRYPOINT: 'server.js', JWT_ISSUER: auth.issuer, JWT_SCOPE: auth.scope, JWT_VERIFY: 'true' },
     },
   });
 
@@ -75,7 +76,7 @@ export function webFunctionOrigin(scope: Construct, { auth, code }: Pick<OriginP
 // Web functions run a zip on a managed Node.js runtime, not a container image: ship the same server code.
 // Lambda reads the zip with its own service principal, so it needs a versioned bucket whose policy grants it,
 // scoped to this function's revisions. The CDK bootstrap bucket cannot carry that policy.
-function codeBucket(scope: Construct, functionName: string): WebFunctionCode {
+function codeBucket(scope: Construct, functionName: string): { bucket: string; key: string; versionId: string } {
   const { region, account } = Stack.of(scope);
   const bucket = new s3.Bucket(scope, 'WebFunctionCodeBucket', {
     versioned: true,
