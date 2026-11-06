@@ -85,12 +85,16 @@ stack creates.
 ![API Gateway pattern: the edge, then an internal NLB, execute-api endpoint, private REST API with regional AWS WAF, and Lambda](docs/diagrams/pattern-mcp-api-gateway-cloudfront/pattern-mcp-api-gateway-cloudfront.svg)
 
 This pattern makes a private API reachable from the internet without exposing it. The REST API has no public endpoint.
-Its resource policy allows invocation only through the VPC endpoint. The load balancer's security group admits only
-CloudFront's origin-facing addresses, and the API stage carries the regional web ACL. The load balancer passes TCP
+Its resource policy allows invocation only through the VPC endpoint, and the load balancer's security group admits
+only CloudFront's origin-facing addresses. The load balancer passes TCP
 through, so TLS runs from CloudFront to the endpoint without interruption. A Cognito authorizer on every method verifies
 the token and the `mcp/api-gateway` scope, so Lambda never runs for a bad token. The load balancer and the interface
 endpoint cost money while idle, and the REST API's 29-second timeout rules out long SSE streams. For details, see the
 [Amazon API Gateway pattern](patterns/pattern-mcp-api-gateway-cloudfront/README.md).
+
+The API stage also carries a regional web ACL, which is what reads the secret header CloudFront adds. The network
+already locks this origin, so that layer is optional. For what it adds and what it costs, see
+[Why a second web ACL here](patterns/pattern-mcp-api-gateway-cloudfront/README.md#why-a-second-web-acl-here).
 
 ### Amazon EKS (your own MCP server)
 
@@ -101,12 +105,15 @@ The following diagram shows the request path and the resources that the stack cr
 ![EKS pattern: the edge, then an internal ALB with regional AWS WAF, pods on an EKS Auto Mode cluster, and a NAT gateway](docs/diagrams/pattern-mcp-eks-cloudfront/pattern-mcp-eks-cloudfront.svg)
 
 This is the shape for teams that run containers on Kubernetes, and it has no public origin to protect. The load balancer
-has only private IP addresses. Its security group admits only CloudFront's origin-facing addresses. It carries the
-regional web ACL, so a workload inside the VPC can't skip the edge rules either. EKS Auto Mode provisions the nodes and
-runs the load balancer controller, so the stack installs no add-ons. The stack creates the load balancer and its target
+has only private IP addresses, and its security group admits only CloudFront's origin-facing addresses. EKS Auto Mode
+provisions the nodes and runs the load balancer controller, so the stack installs no add-ons. The stack creates the load balancer and its target
 group, and a `TargetGroupBinding` registers the pod IP addresses. The pods verify the token and the `mcp/eks` scope
 themselves. The cluster, its nodes, the load balancer, and the NAT gateway cost money while idle. For details, see the
 [Amazon EKS pattern](patterns/pattern-mcp-eks-cloudfront/README.md).
+
+The load balancer also carries a regional web ACL, which is what reads the secret header CloudFront adds. The network
+already locks this origin, so that layer is optional. For what it adds and what it costs, see
+[Why a second web ACL here](patterns/pattern-mcp-eks-cloudfront/README.md#why-a-second-web-acl-here).
 
 ### Lambda Web Function (your own MCP server)
 
